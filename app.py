@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 import os
 import io
 import time
+import streamlit.components.v1 as components
 from typing import Optional, Dict, Any
 
 # --- 1. 기본 설정 및 데이터 로드 ---
@@ -31,87 +32,11 @@ if "temp_data" not in st.session_state:
 
 st.set_page_config(page_title="라미그라운드 방명록", layout="wide")
 
-# --- 2. 디자인 (CSS: 버튼 180px 고정 + 관리자 버튼 격리) ---
+# --- 2. CSS (기본 디자인) ---
 st.markdown(
     """
     <style>
-    /* 전체 화면 가로 간격 20px 고정 */
     [data-testid="stHorizontalBlock"] { gap: 20px !important; }
-
-    /* ===== 사용자 버튼 180px 완전 고정 ===== */
-    .main-btn-container{
-        display: flex;
-        justify-content: center;
-        gap: 25px;
-        flex-wrap: wrap;
-    }
-
-    /* Streamlit 컬럼 컨테이너(버전마다 testid가 달라질 수 있어서 다 잡음) */
-    .main-btn-container div[data-testid="stColumn"],
-    .main-btn-container div[data-testid="column"]{
-        flex: 0 0 auto !important;
-        width: 180px !important;
-        max-width: 180px !important;
-    }
-
-    /* 실제 버튼: stButton 구조 전체에서 버튼만 정확히 잡기 */
-    .main-btn-container [data-testid="stButton"] button{
-        width: 180px !important;
-        height: 180px !important;
-        min-width: 180px !important;
-        min-height: 180px !important;
-        max-width: 180px !important;
-        max-height: 180px !important;
-
-        font-size: 24px !important;
-        font-weight: 800 !important;
-        border-radius: 25px !important;
-
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-
-        box-shadow: 0 6px 14px rgba(0,0,0,0.15) !important;
-        flex-shrink: 0 !important;
-    }
-
-    .main-btn-container [data-testid="stButton"] button:hover{
-        transform: scale(1.05);
-        transition: 0.1s;
-    }
-
-    /* ===== 뒤로 가기 버튼 (180x60) ===== */
-    .yellow-btn-area [data-testid="stButton"] button{
-        background-color: #FFD700 !important;
-        color: #000000 !important;
-
-        width: 180px !important;
-        height: 60px !important;
-        min-width: 180px !important;
-        min-height: 60px !important;
-        max-width: 180px !important;
-        max-height: 60px !important;
-
-        font-size: 20px !important;
-        font-weight: 900 !important;
-        border-radius: 12px !important;
-        border: 2px solid #CCAC00 !important;
-
-        margin-top: 80px !important;
-        display: inline-block !important;
-        flex-shrink: 0 !important;
-    }
-
-    /* ===== 관리자 페이지 버튼: 직사각형 ===== */
-    .admin-btn-area [data-testid="stButton"] button{
-        height: 50px !important;
-        width: 100% !important;
-        min-width: 0px !important;
-        min-height: 0px !important;
-        font-size: 16px !important;
-        font-weight: 600 !important;
-        border-radius: 8px !important;
-    }
 
     .center-text { text-align: center; padding: 20px; }
     .welcome-title { font-size: 48px; font-weight: 900; margin-bottom: 10px; }
@@ -121,12 +46,143 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+# --- 2-1. 버튼 사이즈 "확실히" 고정 (중요)
+# Streamlit은 markdown div로 위젯을 감쌀 수 없어서 CSS만으로는 종종 안 먹습니다.
+# 그래서 JS(MutationObserver)로 버튼 텍스트 기준으로 크기를 강제합니다.
+def inject_button_sizer():
+    # 사용자(키오스크)용 큰 버튼 텍스트 목록
+    kiosk_texts = ["남성", "여성"] + AGE_GROUPS + PURPOSES
+    # JS에서 사용할 배열 문자열
+    kiosk_js_array = "[" + ",".join([f'"{t}"' for t in kiosk_texts]) + "]"
+
+    # 관리자용 버튼은 “큰 버튼 적용 제외” (관리자 페이지는 보통 긴 문구가 들어가므로 텍스트 기준으로 구분)
+    # 필요하면 여기에 관리자 버튼 텍스트를 더 추가해서 강제 스타일링 가능
+    admin_texts = [
+        "💾 변경사항 최종 저장",
+        "📥 필터링 데이터 엑셀(원본+집계+필터정보)",
+        "로그인",
+        "로그아웃",
+    ]
+    admin_js_array = "[" + ",".join([f'"{t}"' for t in admin_texts]) + "]"
+
+    # 현재 페이지 정보
+    page = st.session_state.get("page", "gender")
+    is_admin = bool(st.session_state.get("is_admin", False))
+    page_js = "true" if (is_admin and page == "admin") else "false"
+
+    components.html(
+        f"""
+        <script>
+        (function() {{
+            const kioskTexts = {kiosk_js_array};
+            const adminTexts = {admin_js_array};
+            const isAdminPage = {page_js};
+
+            function applyStyles() {{
+                // Streamlit 메인 영역(사이드바 제외)
+                const main = window.parent.document.querySelector('[data-testid="stMain"]');
+                if (!main) return;
+
+                const buttons = main.querySelectorAll('button');
+                buttons.forEach(btn => {{
+                    const t = (btn.innerText || "").trim();
+
+                    // 기본 리셋(페이지 전환 시 잔상 방지)
+                    btn.style.width = "";
+                    btn.style.height = "";
+                    btn.style.minWidth = "";
+                    btn.style.minHeight = "";
+                    btn.style.maxWidth = "";
+                    btn.style.maxHeight = "";
+                    btn.style.fontSize = "";
+                    btn.style.fontWeight = "";
+                    btn.style.borderRadius = "";
+                    btn.style.display = "";
+                    btn.style.alignItems = "";
+                    btn.style.justifyContent = "";
+                    btn.style.boxShadow = "";
+                    btn.style.backgroundColor = "";
+                    btn.style.color = "";
+                    btn.style.border = "";
+
+                    // 관리자 페이지: 키오스크 버튼 크기 적용하지 않음
+                    if (isAdminPage) {{
+                        // 그래도 관리자 핵심 버튼은 보기 좋게 통일하고 싶으면 아래처럼 텍스트 기준으로 적용
+                        if (adminTexts.includes(t)) {{
+                            btn.style.height = "50px";
+                            btn.style.fontSize = "16px";
+                            btn.style.fontWeight = "600";
+                            btn.style.borderRadius = "8px";
+                            // width는 Streamlit이 100%로 주는 경우가 많아 굳이 고정 안 함
+                        }}
+                        return;
+                    }}
+
+                    // 사용자 페이지: 큰 버튼 적용(텍스트 기준)
+                    if (kioskTexts.includes(t)) {{
+                        btn.style.width = "180px";
+                        btn.style.height = "180px";
+                        btn.style.minWidth = "180px";
+                        btn.style.minHeight = "180px";
+                        btn.style.maxWidth = "180px";
+                        btn.style.maxHeight = "180px";
+                        btn.style.fontSize = "24px";
+                        btn.style.fontWeight = "800";
+                        btn.style.borderRadius = "25px";
+                        btn.style.display = "flex";
+                        btn.style.alignItems = "center";
+                        btn.style.justifyContent = "center";
+                        btn.style.boxShadow = "0 6px 14px rgba(0,0,0,0.15)";
+                    }}
+
+                    // 뒤로가기 버튼
+                    if (t === "뒤로 가기") {{
+                        btn.style.width = "180px";
+                        btn.style.height = "60px";
+                        btn.style.minWidth = "180px";
+                        btn.style.minHeight = "60px";
+                        btn.style.maxWidth = "180px";
+                        btn.style.maxHeight = "60px";
+                        btn.style.fontSize = "20px";
+                        btn.style.fontWeight = "900";
+                        btn.style.borderRadius = "12px";
+                        btn.style.backgroundColor = "#FFD700";
+                        btn.style.color = "#000";
+                        btn.style.border = "2px solid #CCAC00";
+                        btn.style.boxShadow = "0 6px 14px rgba(0,0,0,0.12)";
+                    }}
+                }});
+            }}
+
+            // 최초 1회 + 렌더링 지연 대비 재시도
+            applyStyles();
+            setTimeout(applyStyles, 50);
+            setTimeout(applyStyles, 200);
+            setTimeout(applyStyles, 500);
+
+            // Streamlit rerun/DOM 변경에도 계속 유지
+            const mainRoot = window.parent.document.body;
+            if (mainRoot && !window.parent.__kioskButtonObserver) {{
+                const obs = new MutationObserver(() => {{
+                    applyStyles();
+                }});
+                obs.observe(mainRoot, {{ childList: true, subtree: true }});
+                window.parent.__kioskButtonObserver = obs;
+            }}
+        }})();
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
+
+inject_button_sizer()
+
 # --- 3. 유틸리티 함수 ---
 def get_kst_now() -> datetime:
     return datetime.utcnow() + timedelta(hours=9)
 
 def get_korean_weekday(dt: datetime) -> str:
-    # Monday=0 ... Sunday=6
     days = ["월", "화", "수", "목", "금", "토", "일"]
     return days[dt.weekday()]
 
@@ -143,7 +199,6 @@ def create_excel_report(df: pd.DataFrame, meta: Optional[Dict[str, Any]] = None)
 
     temp_df["일시"] = pd.to_datetime(temp_df["일시"], errors="coerce")
 
-    # 파생 컬럼 (분석/피벗용)
     temp_df["연도"] = temp_df["일시"].dt.year
     temp_df["월"] = temp_df["일시"].dt.month
     temp_df["일자"] = temp_df["일시"].dt.day
@@ -152,7 +207,6 @@ def create_excel_report(df: pd.DataFrame, meta: Optional[Dict[str, Any]] = None)
     temp_df["ISO주차"] = temp_df["일시"].dt.isocalendar().week.astype(int)
     temp_df["연-주"] = temp_df["일시"].dt.year.astype(str) + "-W" + temp_df["ISO주차"].astype(str).str.zfill(2)
 
-    # 집계 시트들
     daily = temp_df["월-일"].value_counts().sort_index().reset_index()
     daily.columns = ["월-일", "방문자 수"]
 
@@ -229,14 +283,10 @@ if st.session_state.is_admin and st.session_state.page == "admin":
         df["일시"] = pd.to_datetime(df["일시"], errors="coerce")
 
     if not df.empty:
-        # 1) 상세 필터링
         with st.expander("🔍 상세 필터링 설정", expanded=True):
             f1, f2 = st.columns(2)
             with f1:
-                date_range = st.date_input(
-                    "날짜 범위",
-                    [df["일시"].min().date(), df["일시"].max().date()],
-                )
+                date_range = st.date_input("날짜 범위", [df["일시"].min().date(), df["일시"].max().date()])
             with f2:
                 selected_gender = st.multiselect("성별", options=["남성", "여성"], default=["남성", "여성"])
 
@@ -255,14 +305,10 @@ if st.session_state.is_admin and st.session_state.page == "admin":
         )
         f_df = df[mask].copy()
 
-        # 2) 데이터 편집/삭제 테이블
         st.subheader("🗑️ 데이터 편집 및 삭제")
         edited_df = st.data_editor(f_df, num_rows="dynamic", use_container_width=True, key="data_editor")
 
-        # 3) 버튼 영역 (저장 & 엑셀)
-        st.markdown("<div class='admin-btn-area'>", unsafe_allow_html=True)
         save_col, excel_col = st.columns(2)
-
         with save_col:
             if st.button("💾 변경사항 최종 저장", use_container_width=True):
                 try:
@@ -291,23 +337,19 @@ if st.session_state.is_admin and st.session_state.page == "admin":
                 file_name="현황.xlsx",
                 use_container_width=True,
             )
-        st.markdown("</div>", unsafe_allow_html=True)
 
         st.divider()
 
         if f_df.empty:
             st.info("필터 조건에 해당하는 데이터가 없습니다.")
         else:
-            # ---------------------------
-            # ✅ 리포트 카드 (월별/주별 요약)
-            # ---------------------------
             st.subheader("🧾 리포트 요약")
 
             temp = f_df.copy()
             temp["일시"] = pd.to_datetime(temp["일시"], errors="coerce")
             temp["날짜"] = temp["일시"].dt.date
-            temp["월"] = temp["일시"].dt.to_period("M").astype(str)  # 예: 2026-02
-            temp["주"] = temp["일시"].dt.isocalendar().week.astype(int)  # ISO 주차
+            temp["월"] = temp["일시"].dt.to_period("M").astype(str)
+            temp["주"] = temp["일시"].dt.isocalendar().week.astype(int)
             temp["연도"] = temp["일시"].dt.year.astype(int)
             temp["연-주"] = temp["연도"].astype(str) + "-W" + temp["주"].astype(str).str.zfill(2)
 
@@ -343,53 +385,27 @@ if st.session_state.is_admin and st.session_state.page == "admin":
 
             st.divider()
 
-            # ---------------------------
-            # ✅ 일자별 방문 추이 (x축 월-일 표시)
-            # ---------------------------
             st.subheader("📅 일자별 방문 추이")
-            daily_counts = (
-                f_df["일시"].dt.floor("D")
-                .value_counts()
-                .sort_index()
-                .reset_index()
-            )
+            daily_counts = f_df["일시"].dt.floor("D").value_counts().sort_index().reset_index()
             daily_counts.columns = ["날짜", "방문자 수"]
 
             fig_daily = px.line(daily_counts, x="날짜", y="방문자 수", markers=True)
-            fig_daily.update_xaxes(
-                tickformat="%m-%d",  # ✅ 월-일
-                dtick="D1",
-                title_text="월-일",
-            )
+            fig_daily.update_xaxes(tickformat="%m-%d", dtick="D1", title_text="월-일")
             st.plotly_chart(fig_daily, use_container_width=True)
 
-            # ---------------------------
-            # ✅ 시간대별 혼잡도 (요일 x 시간) 히트맵
-            # ---------------------------
             st.subheader("🕒 시간대별 혼잡도 (요일 × 시간)")
             heat = f_df.copy()
             heat["일시"] = pd.to_datetime(heat["일시"], errors="coerce")
             heat["시간"] = heat["일시"].dt.hour
-
-            # 과거 데이터에 영문 요일이 섞일 가능성이 있으면, 아래 한 줄을 켜서 강제 한글화 가능
-            # heat["요일"] = heat["일시"].apply(get_korean_weekday)
 
             weekday_order = ["월", "화", "수", "목", "금", "토", "일"]
             pivot = (
                 heat.pivot_table(index="요일", columns="시간", values="일시", aggfunc="count", fill_value=0)
                 .reindex(weekday_order)
             )
-
-            fig_heat = px.imshow(
-                pivot,
-                aspect="auto",
-                labels=dict(x="시간(시)", y="요일", color="방문자 수"),
-            )
+            fig_heat = px.imshow(pivot, aspect="auto", labels=dict(x="시간(시)", y="요일", color="방문자 수"))
             st.plotly_chart(fig_heat, use_container_width=True)
 
-            # ---------------------------
-            # ✅ 기본 파이 차트
-            # ---------------------------
             r1, r2 = st.columns(2)
             with r1:
                 st.plotly_chart(px.pie(f_df, names="성별", title="성별 비중", hole=0.4), use_container_width=True)
@@ -412,7 +428,6 @@ elif st.session_state.page == "gender":
     )
     _, center_col, _ = st.columns([1, 4, 1])
     with center_col:
-        st.markdown("<div class='main-btn-container'>", unsafe_allow_html=True)
         c1, c2 = st.columns(2)
         if c1.button("남성", key="m"):
             st.session_state.temp_data["gender"] = "남성"
@@ -422,54 +437,41 @@ elif st.session_state.page == "gender":
             st.session_state.temp_data["gender"] = "여성"
             st.session_state.page = "age"
             st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
 
 # =========================
 # [C] 사용자 페이지: 연령대
 # =========================
 elif st.session_state.page == "age":
-    st.markdown(
-        "<div class='center-text'><div class='sub-title'>연령대를 선택해주세요.</div></div>",
-        unsafe_allow_html=True,
-    )
+    st.markdown("<div class='center-text'><div class='sub-title'>연령대를 선택해주세요.</div></div>", unsafe_allow_html=True)
     _, center_col, _ = st.columns([1, 6, 1])
     with center_col:
-        st.markdown("<div class='main-btn-container'>", unsafe_allow_html=True)
         c1, c2, c3 = st.columns(3)
         for i, age in enumerate(AGE_GROUPS):
             if [c1, c2, c3][i % 3].button(age, key=f"age_{i}"):
                 st.session_state.temp_data["age"] = age
                 st.session_state.page = "purpose"
                 st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
 
-    # 뒤로 가기
     _, back_col, _ = st.columns([1, 1, 1])
     with back_col:
-        st.markdown("<div class='yellow-btn-area'>", unsafe_allow_html=True)
         if st.button("뒤로 가기", key="back_to_gender"):
             st.session_state.page = "gender"
             st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
 
 # =========================
 # [D] 사용자 페이지: 이용 목적
 # =========================
 elif st.session_state.page == "purpose":
-    st.markdown(
-        "<div class='center-text'><div class='sub-title'>오늘 이용 목적은 무엇인가요?</div></div>",
-        unsafe_allow_html=True,
-    )
+    st.markdown("<div class='center-text'><div class='sub-title'>오늘 이용 목적은 무엇인가요?</div></div>", unsafe_allow_html=True)
     _, center_col, _ = st.columns([1, 6, 1])
     with center_col:
-        st.markdown("<div class='main-btn-container'>", unsafe_allow_html=True)
         c1, c2, c3 = st.columns(3)
         for i, purp in enumerate(PURPOSES):
             if [c1, c2, c3][i % 3].button(purp, key=f"purp_{i}"):
                 now = get_kst_now()
                 new_row = {
                     "일시": now.strftime("%Y-%m-%d %H:%M:%S"),
-                    "요일": get_korean_weekday(now),  # ✅ 한글 요일 저장
+                    "요일": get_korean_weekday(now),
                     "월": now.month,
                     "성별": st.session_state.temp_data["gender"],
                     "연령대": st.session_state.temp_data["age"],
@@ -480,16 +482,12 @@ elif st.session_state.page == "purpose":
                 df.to_csv(DB_FILE, index=False, encoding="utf-8-sig")
                 st.session_state.page = "complete"
                 st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
 
-    # 뒤로 가기
     _, back_col, _ = st.columns([1, 1, 1])
     with back_col:
-        st.markdown("<div class='yellow-btn-area'>", unsafe_allow_html=True)
         if st.button("뒤로 가기", key="back_to_age"):
             st.session_state.page = "age"
             st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
 
 # =========================
 # [E] 사용자 페이지: 완료

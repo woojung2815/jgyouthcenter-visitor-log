@@ -29,14 +29,14 @@ if 'temp_data' not in st.session_state:
 
 st.set_page_config(page_title="라미그라운드 방명록", layout="wide")
 
-# --- 2. 디자인 (CSS: 사용자/관리자 스타일 완전 분리 및 사이즈 강제) ---
+# --- 2. 디자인 (CSS: 태블릿 최적화 강제 무시 및 사이즈 고정) ---
 st.markdown("""
     <style>
-    /* 공통: 가로 간격 20px */
+    /* 1. 레이아웃 간격 고정 */
     [data-testid="stHorizontalBlock"] { gap: 20px !important; }
 
-    /* [사용자 페이지] 메인 버튼 (180x180) 강제 고정 */
-    .main-btn-container div[data-testid="stButton"] button {
+    /* 2. 메인 선택 버튼 (180x180) - 모든 수단 동원하여 강제 고정 */
+    .main-btn-container [data-testid="stButton"] button {
         width: 180px !important;
         height: 180px !important;
         min-width: 180px !important;
@@ -46,18 +46,18 @@ st.markdown("""
         font-size: 24px !important;
         font-weight: 800 !important;
         border-radius: 25px !important;
+        margin: 0 auto !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
-        margin: 0 auto !important;
+        flex-shrink: 0 !important; /* 태블릿 압축 방지 */
         box-shadow: 0 6px 12px rgba(0,0,0,0.15) !important;
-        flex-shrink: 0 !important;
     }
 
-    /* [사용자 페이지] 뒤로 가기 버튼 (180x60, 노란색) 강제 고정 */
-    .yellow-btn-area div[data-testid="stButton"] button {
+    /* 3. 뒤로 가기 버튼 (180x60, 노란색) - 초강력 고정 */
+    .yellow-btn-area [data-testid="stButton"] button {
         background-color: #FFD700 !important;
-        color: #000 !important;
+        color: #000000 !important;
         width: 180px !important;
         height: 60px !important;
         min-width: 180px !important;
@@ -67,7 +67,7 @@ st.markdown("""
         font-size: 20px !important;
         font-weight: 900 !important;
         border-radius: 12px !important;
-        border: none !important;
+        border: 2px solid #CCAC00 !important;
         margin: 100px auto 0 !important;
         display: flex !important;
         align-items: center !important;
@@ -75,8 +75,8 @@ st.markdown("""
         flex-shrink: 0 !important;
     }
 
-    /* [관리자 페이지] 버튼 스타일 (일반 직사각형) */
-    .admin-btn-area div[data-testid="stButton"] button {
+    /* 4. 관리자 페이지 버튼 스타일 (직사각형) */
+    .admin-btn-area [data-testid="stButton"] button {
         height: 50px !important;
         width: 100% !important;
         font-size: 16px !important;
@@ -132,11 +132,12 @@ with st.sidebar:
 
 # [A] 관리자 페이지
 if st.session_state.is_admin and st.session_state.page == 'admin':
-    st.title("📊 데이터 관리 및 통계 분석")
+    st.title("📊 데이터 통합 관리 대시보드")
     df = pd.read_csv(DB_FILE)
     df['일시'] = pd.to_datetime(df['일시'])
     
     if not df.empty:
+        # 필터링 섹션
         with st.expander("🔍 상세 필터링 설정", expanded=True):
             f1, f2 = st.columns(2)
             with f1: date_range = st.date_input("날짜 범위", [df['일시'].min().date(), df['일시'].max().date()])
@@ -153,7 +154,7 @@ if st.session_state.is_admin and st.session_state.page == 'admin':
         st.subheader("🗑️ 데이터 편집 및 삭제")
         edited_df = st.data_editor(f_df, num_rows="dynamic", use_container_width=True, key="data_editor")
 
-        # 관리자 버튼 영역
+        # 관리자 버튼 영역 (동일한 디자인 적용)
         st.markdown("<div class='admin-btn-area'>", unsafe_allow_html=True)
         c1, c2 = st.columns(2)
         with c1:
@@ -186,8 +187,8 @@ elif st.session_state.page == 'gender':
     with center_col:
         st.markdown("<div class='main-btn-container'>", unsafe_allow_html=True)
         c1, c2 = st.columns(2)
-        if c1.button("남성"): st.session_state.temp_data['gender'] = "남성"; st.session_state.page = 'age'; st.rerun()
-        if c2.button("여성"): st.session_state.temp_data['gender'] = "여성"; st.session_state.page = 'age'; st.rerun()
+        if c1.button("남성", key="male"): st.session_state.temp_data['gender'] = "남성"; st.session_state.page = 'age'; st.rerun()
+        if c2.button("여성", key="female"): st.session_state.temp_data['gender'] = "여성"; st.session_state.page = 'age'; st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
 # [C] 사용자 페이지: 연령대
@@ -198,7 +199,7 @@ elif st.session_state.page == 'age':
         st.markdown("<div class='main-btn-container'>", unsafe_allow_html=True)
         c1, c2, c3 = st.columns(3)
         for i, age in enumerate(AGE_GROUPS):
-            if [c1, c2, c3][i % 3].button(age):
+            if [c1, c2, c3][i % 3].button(age, key=f"age_{i}"):
                 st.session_state.temp_data['age'] = age; st.session_state.page = 'purpose'; st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
     
@@ -216,7 +217,7 @@ elif st.session_state.page == 'purpose':
         st.markdown("<div class='main-btn-container'>", unsafe_allow_html=True)
         c1, c2, c3 = st.columns(3)
         for i, purp in enumerate(PURPOSES):
-            if [c1, c2, c3][i % 3].button(purp):
+            if [c1, c2, c3][i % 3].button(purp, key=f"purp_{i}"):
                 now = get_kst_now()
                 new_row = {"일시": now.strftime("%Y-%m-%d %H:%M:%S"), "요일": now.strftime("%A"), "월": now.month, "성별": st.session_state.temp_data['gender'], "연령대": st.session_state.temp_data['age'], "이용목록": purp}
                 df = pd.read_csv(DB_FILE)

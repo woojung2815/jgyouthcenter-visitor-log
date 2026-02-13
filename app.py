@@ -397,7 +397,7 @@ if st.session_state.is_admin and st.session_state.page == "admin":
 
             # ---------------------------
             # ✅ 일자별 방문 추이 (최근 1주 / 최근 1달 / 기간 설정)
-            #    - x축: "몇월 몇일"
+            #    - x축: 2/3 형태
             #    - 데이터 많으면 자동 간격: 5일 / 1달
             # ---------------------------
             st.subheader("📅 일자별 방문 추이")
@@ -461,23 +461,19 @@ if st.session_state.is_admin and st.session_state.page == "admin":
                         hover_data={"날짜": "|%Y-%m-%d"},
                     )
 
-                    # 기본: "몇월 몇일"
+                    # 기본: 2/3 형태(환경에 따라 %-m/%-d 미지원이면 02/03로 표시됨)
                     fig_daily.update_xaxes(
-                        tickformat="%-m %-d",
+                        tickformat="%-m/%-d",
                         title_text="날짜",
                     )
 
-                    # 기간 길이에 따라 표시 간격 자동 조정
                     total_days = (chart_end - chart_start).days + 1
                     if total_days >= 120:
-                        # 4개월 이상이면 월 단위(1달 간격)
-                        fig_daily.update_xaxes(dtick="M1", tickformat="%Y년 %m월")
+                        fig_daily.update_xaxes(dtick="M1", tickformat="%Y/%m")
                     elif total_days >= 35:
-                        # 5주 이상이면 5일 간격
-                        fig_daily.update_xaxes(dtick="D5", tickformat="%m월 %d일")
+                        fig_daily.update_xaxes(dtick="D5", tickformat="%-m/%-d")
                     else:
-                        # 짧으면 매일
-                        fig_daily.update_xaxes(dtick="D1", tickformat="%m월 %d일")
+                        fig_daily.update_xaxes(dtick="D1", tickformat="%-m/%-d")
 
                     st.plotly_chart(fig_daily, use_container_width=True)
 

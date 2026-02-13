@@ -39,23 +39,26 @@ st.markdown("""
         border-radius: 20px !important; margin: 10px auto; display: block;
     }
     
-    /* 뒤로 가기 버튼 전용 스타일 (180x60, 노란색, 중앙 정렬, 상단 여백 200px) */
-    div.back-container {
-        display: flex;
-        justify-content: center;
-        margin-top: 200px !important; /* 상단 버튼들과의 간격 */
-        width: 100%;
+    /* 뒤로 가기 버튼 전용 (180x60, 노란색, 상단 여백 100px) */
+    /* Streamlit의 버튼 구조를 고려하여 특정 스타일 부여 */
+    div[data-testid="stColumn"] div.stButton > button {
+        border-radius: 10px !important;
+        font-weight: bold !important;
+    }
+
+    /* 노란색 버튼을 위한 강제 스타일링 (뒤로 가기 전용) */
+    .yellow-btn button {
+        background-color: #FFD700 !important;
+        color: #333 !important;
+        height: 60px !important;
+        width: 180px !important;
+        border: none !important;
+        font-size: 18px !important;
     }
     
-    div.back-container div.stButton > button {
-        width: 180px !important;
-        height: 60px !important;
-        background-color: #FFD700 !important; /* 노란색 */
-        color: #333 !important;
-        font-size: 18px !important;
-        font-weight: bold !important;
-        border-radius: 10px !important;
-        border: none !important;
+    /* 중앙 정렬을 위한 컨테이너 */
+    .back-spacer {
+        margin-top: 100px;
     }
     
     .center-text { text-align: center; padding: 20px; }
@@ -182,11 +185,14 @@ elif st.session_state.page == 'age':
         with cols[i % 3]:
             if st.button(age): st.session_state.temp_data['age'] = age; st.session_state.page = 'purpose'; st.rerun()
     
-    # 뒤로 가기 버튼 컨테이너 (중앙 정렬 및 상단 여백)
-    st.markdown("<div class='back-container'>", unsafe_allow_html=True)
-    if st.button("뒤로 가기"):
-        st.session_state.page = 'gender'; st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
+    # 간격 및 중앙 정렬 뒤로 가기
+    st.markdown("<div class='back-spacer'></div>", unsafe_allow_html=True)
+    _, back_col, _ = st.columns([1, 0.6, 1]) # 가운데 열의 너비를 조정하여 버튼 중앙 배치
+    with back_col:
+        st.markdown("<div class='yellow-btn'>", unsafe_allow_html=True)
+        if st.button("뒤로 가기"):
+            st.session_state.page = 'gender'; st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
 
 # [D] 사용자 페이지 3: 이용 목적 선택
 elif st.session_state.page == 'purpose':
@@ -202,11 +208,14 @@ elif st.session_state.page == 'purpose':
                 df.to_csv(DB_FILE, index=False, encoding='utf-8-sig')
                 st.session_state.page = 'complete'; st.rerun()
     
-    # 뒤로 가기 버튼 컨테이너 (중앙 정렬 및 상단 여백)
-    st.markdown("<div class='back-container'>", unsafe_allow_html=True)
-    if st.button("뒤로 가기"):
-        st.session_state.page = 'age'; st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
+    # 간격 및 중앙 정렬 뒤로 가기
+    st.markdown("<div class='back-spacer'></div>", unsafe_allow_html=True)
+    _, back_col, _ = st.columns([1, 0.6, 1])
+    with back_col:
+        st.markdown("<div class='yellow-btn'>", unsafe_allow_html=True)
+        if st.button("뒤로 가기"):
+            st.session_state.page = 'age'; st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
 
 # [E] 사용자 페이지 4: 완료
 elif st.session_state.page == 'complete':

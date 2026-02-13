@@ -32,7 +32,7 @@ st.set_page_config(page_title="라미그라운드 방명록", layout="wide")
 # --- 2. 디자인 (CSS) ---
 st.markdown("""
     <style>
-    /* 전체 레이아웃 가로 간격 20px 고정 */
+    /* 버튼 사이 가로 간격 20px 고정 */
     [data-testid="stHorizontalBlock"] {
         gap: 20px !important;
     }
@@ -49,7 +49,7 @@ st.markdown("""
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
     
-    /* 뒤로 가기 버튼 전용 스타일 (180x60) */
+    /* 뒤로 가기 버튼 전용 스타일 (180x60, 노란색) */
     .yellow-btn button {
         background-color: #FFD700 !important;
         color: #333 !important;
@@ -61,12 +61,12 @@ st.markdown("""
         font-weight: bold !important;
     }
     
-    /* 섹션 간 세로 간격 조절 (100px) */
+    /* 선택 버튼과 뒤로 가기 버튼 사이의 간격 (100px) */
     .back-spacer {
         margin-top: 100px;
     }
     
-    /* 텍스트 중앙 정렬 */
+    /* 텍스트 중앙 정렬 및 폰트 설정 */
     .center-text { text-align: center; padding: 20px; }
     .welcome-title { font-size: 46px; font-weight: 800; margin-bottom: 10px; color: #1E1E1E; }
     .sub-title { font-size: 26px; color: #666; margin-bottom: 50px; }
@@ -117,4 +117,64 @@ with st.sidebar:
 if st.session_state.is_admin and st.session_state.page == 'admin':
     st.title("📊 관리자 대시보드")
     df = pd.read_csv(DB_FILE)
-    df['일시'] = pd.to_datetime(df['
+    # --- 문제의 라인 120번 근처 (정상 수정됨) ---
+    df['일시'] = pd.to_datetime(df['일시'])
+    
+    if not df.empty:
+        st.subheader("🗑️ 데이터 관리 및 삭제")
+        df['연도'] = df['일시'].dt.year
+        df['일자'] = df['일시'].dt.day
+        df['시간'] = df['일시'].dt.hour
+        display_df = df[["연도", "월", "일자", "요일", "시간", "성별", "연령대"]]
+        edited_df = st.data_editor(display_df, num_rows="dynamic", use_container_width=True)
+        
+        if st.button("💾 변경사항 저장"):
+            try:
+                edited_df['연도'] = pd.to_numeric(edited_df['연도'], errors='coerce').fillna(0).astype(int)
+                edited_df['월'] = pd.to_numeric(edited_df['월'], errors='coerce').fillna(0).astype(int)
+                edited_df['일자'] = pd.to_numeric(edited_df['일자'], errors='coerce').fillna(0).astype(int)
+                edited_df['시간'] = pd.to_numeric(edited_df['시간'], errors='coerce').fillna(0).astype(int)
+                
+                new_ts = []; new_purp = []
+                for idx, row in edited_df.iterrows():
+                    ts = f"{row['연도']}-{row['월']:02d}-{row['일자']:02d} {row['시간']:02d}:00:00"
+                    new_ts.append(ts)
+                    new_purp.append(df.at[idx, '이용목록'] if idx in df.index else "기타")
+                
+                edited_df['일시'] = new_ts
+                edited_df['이용목록'] = new_purp
+                
+                # 저장용 컬럼만 추출하여 저장
+                save_df = edited_df[["일시", "요일", "월", "성별", "연령대", "이용목록"]]
+                save_df.to_csv(DB_FILE, index=False, encoding='utf-8-sig')
+                st.success("데이터가 안전하게 저장되었습니다.")
+                st.rerun()
+            except Exception as e:
+                st.error(f"저장 오류: {e}")
+
+        st.download_button("📥 엑셀 추출", data=create_excel_report(df), file_name="라미그라운드_현황.xlsx")
+    else: st.info("데이터가 없습니다.")
+
+# [B] 사용자 페이지 1: 성별 선택
+elif st.session_state.page == 'gender':
+    st.markdown("<div class='center-text'><div class='welcome-title'>라미그라운드 방문을 환영합니다! 😊</div><div class='sub-title'>성별을 선택해주세요.</div></div>", unsafe_allow_html=True)
+    _, center_col, _ = st.columns([1, 4, 1])
+    with center_col:
+        c1, c2 = st.columns(2)
+        if c1.button("남성"): st.session_state.temp_data['gender'] = "남성"; st.session_state.page = 'age'; st.rerun()
+        if c2.button("여성"): st.session_state.temp_data['gender'] = "여성"; st.session_state.page = 'age'; st.rerun()
+
+# [C] 사용자 페이지 2: 연령대 선택
+elif st.session_state.page == 'age':
+    st.markdown("<div class='center-text'><div class='sub-title'>연령대를 선택해주세요.</div></div>", unsafe_allow_html=True)
+    _, center_col, _ = st.columns([1, 6, 1])
+    with center_col:
+        c1, c2, c3 = st.columns(3)
+        for i, age in enumerate(AGE_GROUPS):
+            target_col = [c1, c2, c3][i % 3]
+            if target_col.button(age): st.session_state.temp_data['age'] = age; st.session_state.page = 'purpose'; st.rerun()
+    
+    st.markdown("<div class='back-spacer'></div>", unsafe_allow_html=True)
+    _, back_col, _ = st.columns([1, 0.6, 1])
+    with back_col:
+        st.markdown("<div class='

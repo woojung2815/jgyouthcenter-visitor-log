@@ -106,7 +106,6 @@ def inject_button_sizer():
                         return;
                     }}
 
-                    // kiosk big buttons
                     if (kioskTexts.includes(t)) {{
                         btn.style.width = "180px";
                         btn.style.height = "180px";
@@ -123,7 +122,6 @@ def inject_button_sizer():
                         btn.style.boxShadow = "0 6px 14px rgba(0,0,0,0.15)";
                     }}
 
-                    // back button
                     if (t === "뒤로 가기") {{
                         btn.style.width = "180px";
                         btn.style.height = "60px";
@@ -171,8 +169,8 @@ def get_korean_weekday(dt: datetime) -> str:
     return days[dt.weekday()]
 
 def iso_week_date_range(year: int, week: int) -> tuple[date, date]:
-    start = date.fromisocalendar(year, week, 1)  # Monday
-    end = date.fromisocalendar(year, week, 7)    # Sunday
+    start = date.fromisocalendar(year, week, 1)
+    end = date.fromisocalendar(year, week, 7)
     return start, end
 
 def create_excel_report(df: pd.DataFrame, meta: Optional[Dict[str, Any]] = None) -> bytes:
@@ -248,7 +246,6 @@ with st.sidebar:
             admin_id = st.text_input("아이디")
             admin_pw = st.text_input("비밀번호", type="password")
             if st.button("로그인"):
-                # ⚠️ 보안상: 실제 배포 시 secrets/환경변수로 분리 권장
                 if admin_id == "jgyouth" and admin_pw == "youth2250!!":
                     st.session_state.is_admin = True
                     st.session_state.page = "admin"
@@ -274,19 +271,89 @@ if st.session_state.is_admin and st.session_state.page == "admin":
     if not df.empty:
         df["일시"] = pd.to_datetime(df["일시"], errors="coerce")
 
-    if not df.empty:
-        with st.expander("🔍 상세 필터링 설정", expanded=True):
+    if df.empty:
+        st.info("데이터가 없습니다.")
+    else:
+        # ============================================================
+        # ✅ 1) 데이터 편집/삭제 (상세 필터링과 무관하게 '전체 데이터' 대상)
+        #    - 아래에서 저장/다운로드도 전체 데이터 기준
+        # ============================================================
+        st.subheader("🗑️ 데이터 편집 및 삭제 (전체 데이터)")
+        df_all = df.copy()
+
+        edited_all_df = st.data_editor(
+            df_all,
+            num_rows="dynamic",
+            use_container_width=True,
+            key="data_editor_all",
+        )
+
+        save_col, excel_col = st.columns(2)
+        with save_col:
+            if st.button("💾 변경사항 최종 저장", use_container_width=True, key="save_all"):
+                try:
+                    # 필요한 컬럼만 저장(구조 유지)
+                    cols = ["일시", "요일", "월", "성별", "연령대", "이용목록"]
+                    for c in cols:
+                        if c not in edited_all_df.columns:
+                            edited_all_df[c] = None
+                    edited_all_df[cols].to_csv(DB_FILE, index=False, encoding="utf-8-sig")
+                    st.success("저장 완료!")
+                    time.sleep(1)
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"오류: {e}")
+
+        with excel_col:
+            meta_all = {
+                "대상": "전체 데이터(편집/삭제 섹션 기준)",
+                "추출시각(KST)": get_kst_now().strftime("%Y-%m-%d %H:%M:%S"),
+            }
+            st.download_button(
+                "📥 전체 데이터 엑셀(원본+집계)",
+                data=create_excel_report(df_all, meta=meta_all),
+                file_name="전체데이터_현황.xlsx",
+                use_container_width=True,
+                key="download_all_excel",
+            )
+
+        st.divider()
+
+        # ============================================================
+        # ✅ 2) 상세 필터링 설정 (리포트/그래프/파이차트/필터엑셀은 여기만 반영)
+        # ============================================================
+        st.subheader("🔍 상세 필터링 설정 (리포트/그래프용)")
+        with st.expander("필터 열기/닫기", expanded=True):
             f1, f2 = st.columns(2)
             with f1:
-                date_range = st.date_input("날짜 범위", [df["일시"].min().date(), df["일시"].max().date()])
+                date_range = st.date_input(
+                    "날짜 범위",
+                    [df["일시"].min().date(), df["일시"].max().date()],
+                    key="filter_date_range",
+                )
             with f2:
-                selected_gender = st.multiselect("성별", options=["남성", "여성"], default=["남성", "여성"])
+                selected_gender = st.multiselect(
+                    "성별",
+                    options=["남성", "여성"],
+                    default=["남성", "여성"],
+                    key="filter_gender",
+                )
 
             f3, f4 = st.columns(2)
             with f3:
-                selected_ages = st.multiselect("연령대", options=AGE_GROUPS, default=AGE_GROUPS)
+                selected_ages = st.multiselect(
+                    "연령대",
+                    options=AGE_GROUPS,
+                    default=AGE_GROUPS,
+                    key="filter_ages",
+                )
             with f4:
-                selected_purposes = st.multiselect("이용 목적", options=PURPOSES, default=PURPOSES)
+                selected_purposes = st.multiselect(
+                    "이용 목적",
+                    options=PURPOSES,
+                    default=PURPOSES,
+                    key="filter_purposes",
+                )
 
         mask = (
             (df["일시"].dt.date >= date_range[0])
@@ -297,38 +364,23 @@ if st.session_state.is_admin and st.session_state.page == "admin":
         )
         f_df = df[mask].copy()
 
-        st.subheader("🗑️ 데이터 편집 및 삭제")
-        edited_df = st.data_editor(f_df, num_rows="dynamic", use_container_width=True, key="data_editor")
-
-        save_col, excel_col = st.columns(2)
-        with save_col:
-            if st.button("💾 변경사항 최종 저장", use_container_width=True):
-                try:
-                    final_df = pd.concat([df[~mask], edited_df], ignore_index=True)
-                    final_df[["일시", "요일", "월", "성별", "연령대", "이용목록"]].to_csv(
-                        DB_FILE, index=False, encoding="utf-8-sig"
-                    )
-                    st.success("저장 완료!")
-                    time.sleep(1)
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"오류: {e}")
-
-        with excel_col:
-            meta = {
-                "시작일": str(date_range[0]),
-                "종료일": str(date_range[1]),
-                "성별": ", ".join(selected_gender),
-                "연령대": ", ".join(selected_ages),
-                "이용목적": ", ".join(selected_purposes),
-                "추출시각(KST)": get_kst_now().strftime("%Y-%m-%d %H:%M:%S"),
-            }
-            st.download_button(
-                "📥 필터링 데이터 엑셀(원본+집계+필터정보)",
-                data=create_excel_report(f_df, meta=meta),
-                file_name="현황.xlsx",
-                use_container_width=True,
-            )
+        # 필터링 엑셀 다운로드(리포트용)
+        meta_filtered = {
+            "대상": "필터링 데이터(리포트/그래프 기준)",
+            "시작일": str(date_range[0]),
+            "종료일": str(date_range[1]),
+            "성별": ", ".join(selected_gender),
+            "연령대": ", ".join(selected_ages),
+            "이용목적": ", ".join(selected_purposes),
+            "추출시각(KST)": get_kst_now().strftime("%Y-%m-%d %H:%M:%S"),
+        }
+        st.download_button(
+            "📥 필터링 데이터 엑셀(원본+집계+필터정보)",
+            data=create_excel_report(f_df, meta=meta_filtered),
+            file_name="필터링_현황.xlsx",
+            use_container_width=True,
+            key="download_filtered_excel",
+        )
 
         st.divider()
 
@@ -336,7 +388,7 @@ if st.session_state.is_admin and st.session_state.page == "admin":
             st.info("필터 조건에 해당하는 데이터가 없습니다.")
         else:
             # ---------------------------
-            # ✅ 리포트 요약
+            # ✅ 리포트 요약 (필터 반영)
             # ---------------------------
             st.subheader("🧾 리포트 요약")
 
@@ -396,9 +448,9 @@ if st.session_state.is_admin and st.session_state.page == "admin":
             st.divider()
 
             # ---------------------------
-            # ✅ 일자별 방문 추이 (최근 1주 / 최근 1달 / 기간 설정)
+            # ✅ 일자별 방문 추이 (필터 반영 + 기간 선택)
             #    - x축: 2/3 형태
-            #    - 데이터 많으면 자동 간격: 5일 / 1달
+            #    - 자동 간격: 5일 / 1달
             # ---------------------------
             st.subheader("📅 일자별 방문 추이")
 
@@ -436,7 +488,7 @@ if st.session_state.is_admin and st.session_state.page == "admin":
                     if period_option == "최근 1주":
                         chart_start = max(today_kst - timedelta(days=6), f_min)
                         chart_end = min(today_kst, f_max)
-                    else:  # 최근 1달
+                    else:
                         chart_start = max(today_kst - timedelta(days=29), f_min)
                         chart_end = min(today_kst, f_max)
 
@@ -461,9 +513,8 @@ if st.session_state.is_admin and st.session_state.page == "admin":
                         hover_data={"날짜": "|%Y-%m-%d"},
                     )
 
-                    # 기본: 2/3 형태(환경에 따라 %-m/%-d 미지원이면 02/03로 표시됨)
                     fig_daily.update_xaxes(
-                        tickformat="%-m/%-d",
+                        tickformat="%-m/%-d",  # 2/3 형태(환경에 따라 02/03로 보일 수 있음)
                         title_text="날짜",
                     )
 
@@ -478,16 +529,13 @@ if st.session_state.is_admin and st.session_state.page == "admin":
                     st.plotly_chart(fig_daily, use_container_width=True)
 
             # ---------------------------
-            # ✅ 기본 파이 차트
+            # ✅ 파이 차트(필터 반영)
             # ---------------------------
             r1, r2 = st.columns(2)
             with r1:
                 st.plotly_chart(px.pie(f_df, names="성별", title="성별 비중", hole=0.4), use_container_width=True)
             with r2:
                 st.plotly_chart(px.pie(f_df, names="이용목록", title="이용 목적 비중", hole=0.4), use_container_width=True)
-
-    else:
-        st.info("데이터가 없습니다.")
 
 # =========================
 # [B] 사용자 페이지: 성별

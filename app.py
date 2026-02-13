@@ -209,5 +209,5 @@ elif st.session_state.page == 'complete':
     st.balloons()
     st.markdown("<div class='center-text' style='margin-top:100px;'><div class='welcome-title'>✅ 접수 완료!</div><div class='sub-title'>감사합니다. 즐거운 시간 되세요!</div></div>", unsafe_allow_html=True)
     import time
-    time.sleep(1.5)
+    time.sleep(2.0)
     st.session_state.page = 'gender'; st.rerun()

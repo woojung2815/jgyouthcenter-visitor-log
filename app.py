@@ -112,22 +112,17 @@ if st.session_state.is_admin and st.session_state.page == 'admin':
         
         if st.button("💾 변경사항 저장"):
             try:
-                # 1. 숫자 데이터 정수형으로 변환 (에러 방지 핵심)
+                # 데이터 변환 및 인덱스 정리
                 edited_df['연도'] = pd.to_numeric(edited_df['연도'], errors='coerce').fillna(0).astype(int)
                 edited_df['월'] = pd.to_numeric(edited_df['월'], errors='coerce').fillna(0).astype(int)
                 edited_df['일자'] = pd.to_numeric(edited_df['일자'], errors='coerce').fillna(0).astype(int)
                 edited_df['시간'] = pd.to_numeric(edited_df['시간'], errors='coerce').fillna(0).astype(int)
                 
-                # 2. '이용목록' 보존 및 '일시' 재생성 (리스트 생성 방식)
                 new_timestamps = []
                 new_purposes = []
-                
                 for idx, row in edited_df.iterrows():
-                    # 일시 생성
                     ts = f"{row['연도']}-{row['월']:02d}-{row['일자']:02d} {row['시간']:02d}:00:00"
                     new_timestamps.append(ts)
-                    
-                    # 기존 이용목록 매칭 (없으면 기타)
                     if idx in f_df.index:
                         new_purposes.append(f_df.at[idx, '이용목록'])
                     else:
@@ -136,7 +131,6 @@ if st.session_state.is_admin and st.session_state.page == 'admin':
                 edited_df['일시'] = new_timestamps
                 edited_df['이용목록'] = new_purposes
                 
-                # 3. 저장
                 final_save_df = pd.concat([df[~mask], edited_df], ignore_index=True)
                 save_cols = ["일시", "요일", "월", "성별", "연령대", "이용목록"]
                 final_save_df[save_cols].to_csv(DB_FILE, index=False, encoding='utf-8-sig')
@@ -153,14 +147,6 @@ if st.session_state.is_admin and st.session_state.page == 'admin':
         c1, c2 = st.columns(2)
         with c1: st.plotly_chart(px.pie(f_df, names='성별', title='성별 비중', hole=0.4), use_container_width=True)
         with c2: st.plotly_chart(px.pie(f_df, names='이용목록', title='이용 목적 비중', hole=0.4), use_container_width=True)
-        
-        c3, c4 = st.columns(2)
-        with c3:
-            age_chart = f_df['연령대'].value_counts().reindex(AGE_GROUPS).fillna(0).reset_index()
-            st.plotly_chart(px.bar(age_chart, x='연령대', y='count', title='연령대별'), use_container_width=True)
-        with c4:
-            hour_chart = f_df['시간'].value_counts().sort_index().reset_index()
-            st.plotly_chart(px.line(hour_chart, x='시간', y='count', title='시간대별 패턴', markers=True), use_container_width=True)
     else: st.info("데이터가 없습니다.")
 
 # [B] 사용자 페이지 (성별)
@@ -201,10 +187,11 @@ elif st.session_state.page == 'purpose':
                 df.to_csv(DB_FILE, index=False, encoding='utf-8-sig')
                 st.session_state.page = 'complete'; st.rerun()
 
-# [E] 사용자 페이지 (완료)
+# [E] 사용자 페이지 (완료) - [시간 단축 적용]
 elif st.session_state.page == 'complete':
     st.balloons()
     st.markdown("<div class='center-text' style='margin-top:100px;'><div class='welcome-title'>✅ 접수 완료!</div><div class='sub-title'>감사합니다. 즐거운 시간 되세요!</div></div>", unsafe_allow_html=True)
     import time
-    time.sleep(3)
+    # 대기 시간을 3초에서 1.5초로 단축
+    time.sleep(1.5)
     st.session_state.page = 'gender'; st.rerun()

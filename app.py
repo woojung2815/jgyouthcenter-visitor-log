@@ -32,13 +32,13 @@ st.set_page_config(page_title="라미그라운드 방명록", layout="wide")
 # --- 2. 디자인 (CSS) ---
 st.markdown("""
     <style>
-    /* 1. 버튼 사이 가로 간격 20px */
+    /* 버튼 사이 가로 간격 20px 고정 */
     [data-testid="stHorizontalBlock"] {
         gap: 20px !important;
     }
 
-    /* 2. 메인 선택 버튼 (180x180) */
-    .main-btn-container div.stButton > button {
+    /* 메인 선택 버튼 (180x180) */
+    div.stButton > button:not(.back-btn) {
         width: 180px !important; 
         height: 180px !important;
         font-size: 22px !important; 
@@ -49,8 +49,8 @@ st.markdown("""
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
     
-    /* 3. 뒤로 가기 버튼 (180x60, 노란색) */
-    .yellow-btn-container div.stButton > button {
+    /* 뒤로 가기 버튼 전용 스타일 (180x60, 노란색) */
+    .yellow-btn button {
         background-color: #FFD700 !important;
         color: #333 !important;
         height: 60px !important;
@@ -59,19 +59,17 @@ st.markdown("""
         font-size: 18px !important;
         border-radius: 12px !important;
         font-weight: bold !important;
-        margin: 0 auto;
-        display: block;
     }
     
-    /* 4. 뒤로 가기 버튼 상단 여백 (100px) */
+    /* 선택 버튼과 뒤로 가기 버튼 사이의 간격 (100px) */
     .back-spacer {
         margin-top: 100px;
     }
     
-    /* 텍스트 중앙 정렬 */
+    /* 텍스트 중앙 정렬 및 폰트 설정 */
     .center-text { text-align: center; padding: 20px; }
     .welcome-title { font-size: 46px; font-weight: 800; margin-bottom: 10px; color: #1E1E1E; }
-    .sub-title { font-size: 24px; color: #666; margin-bottom: 50px; }
+    .sub-title { font-size: 26px; color: #666; margin-bottom: 50px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -119,6 +117,7 @@ with st.sidebar:
 if st.session_state.is_admin and st.session_state.page == 'admin':
     st.title("📊 관리자 대시보드")
     df = pd.read_csv(DB_FILE)
+    # --- 문제의 라인 120번 근처 (정상 수정됨) ---
     df['일시'] = pd.to_datetime(df['일시'])
     
     if not df.empty:
@@ -145,6 +144,7 @@ if st.session_state.is_admin and st.session_state.page == 'admin':
                 edited_df['일시'] = new_ts
                 edited_df['이용목록'] = new_purp
                 
+                # 저장용 컬럼만 추출하여 저장
                 save_df = edited_df[["일시", "요일", "월", "성별", "연령대", "이용목록"]]
                 save_df.to_csv(DB_FILE, index=False, encoding='utf-8-sig')
                 st.success("데이터가 안전하게 저장되었습니다.")
@@ -160,29 +160,25 @@ elif st.session_state.page == 'gender':
     st.markdown("<div class='center-text'><div class='welcome-title'>라미그라운드 방문을 환영합니다! 😊</div><div class='sub-title'>성별을 선택해주세요.</div></div>", unsafe_allow_html=True)
     _, center_col, _ = st.columns([1, 4, 1])
     with center_col:
-        st.markdown("<div class='main-btn-container'>", unsafe_allow_html=True)
         c1, c2 = st.columns(2)
         if c1.button("남성"): st.session_state.temp_data['gender'] = "남성"; st.session_state.page = 'age'; st.rerun()
         if c2.button("여성"): st.session_state.temp_data['gender'] = "여성"; st.session_state.page = 'age'; st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
 
 # [C] 사용자 페이지 2: 연령대 선택
 elif st.session_state.page == 'age':
     st.markdown("<div class='center-text'><div class='sub-title'>연령대를 선택해주세요.</div></div>", unsafe_allow_html=True)
     _, center_col, _ = st.columns([1, 6, 1])
     with center_col:
-        st.markdown("<div class='main-btn-container'>", unsafe_allow_html=True)
         c1, c2, c3 = st.columns(3)
         for i, age in enumerate(AGE_GROUPS):
             target_col = [c1, c2, c3][i % 3]
             if target_col.button(age): st.session_state.temp_data['age'] = age; st.session_state.page = 'purpose'; st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
     
     st.markdown("<div class='back-spacer'></div>", unsafe_allow_html=True)
     _, back_col, _ = st.columns([1, 0.6, 1])
     with back_col:
-        st.markdown("<div class='yellow-btn-container'>", unsafe_allow_html=True)
-        if st.button("뒤로 가기", key="back_to_gender"): st.session_state.page = 'gender'; st.rerun()
+        st.markdown("<div class='yellow-btn'>", unsafe_allow_html=True)
+        if st.button("뒤로 가기"): st.session_state.page = 'gender'; st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
 # [D] 사용자 페이지 3: 이용 목적 선택
@@ -190,7 +186,6 @@ elif st.session_state.page == 'purpose':
     st.markdown("<div class='center-text'><div class='sub-title'>오늘 이용 목적은 무엇인가요?</div></div>", unsafe_allow_html=True)
     _, center_col, _ = st.columns([1, 6, 1])
     with center_col:
-        st.markdown("<div class='main-btn-container'>", unsafe_allow_html=True)
         c1, c2, c3 = st.columns(3)
         for i, purp in enumerate(PURPOSES):
             target_col = [c1, c2, c3][i % 3]
@@ -201,19 +196,18 @@ elif st.session_state.page == 'purpose':
                 df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
                 df.to_csv(DB_FILE, index=False, encoding='utf-8-sig')
                 st.session_state.page = 'complete'; st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("<div class='back-spacer'></div>", unsafe_allow_html=True)
     _, back_col, _ = st.columns([1, 0.6, 1])
     with back_col:
-        st.markdown("<div class='yellow-btn-container'>", unsafe_allow_html=True)
-        if st.button("뒤로 가기", key="back_to_age"): st.session_state.page = 'age'; st.rerun()
+        st.markdown("<div class='yellow-btn'>", unsafe_allow_html=True)
+        if st.button("뒤로 가기"): st.session_state.page = 'age'; st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
-# [E] 사용자 페이지 4: 완료 (대기 시간 2초 적용)
+# [E] 사용자 페이지 4: 완료
 elif st.session_state.page == 'complete':
     st.balloons()
     st.markdown("<div class='center-text' style='margin-top:100px;'><div class='welcome-title'>✅ 접수 완료!</div><div class='sub-title'>감사합니다. 즐거운 시간 되세요!</div></div>", unsafe_allow_html=True)
     import time
-    time.sleep(2.0)
+    time.sleep(1.5)
     st.session_state.page = 'gender'; st.rerun()

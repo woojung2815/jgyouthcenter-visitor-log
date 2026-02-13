@@ -29,30 +29,45 @@ if 'temp_data' not in st.session_state:
 
 st.set_page_config(page_title="라미그라운드 방명록", layout="wide")
 
-# --- 2. 디자인 (CSS) ---
+# --- 2. 디자인 (CSS: 버튼 사이즈 및 색상 강제 지정) ---
 st.markdown("""
     <style>
-    [data-testid="stHorizontalBlock"] { gap: 20px !important; }
-    
-    /* 메인 선택 버튼 (180x180) */
+    /* 1. 버튼 사이 가로 간격 20px */
+    [data-testid="stHorizontalBlock"] {
+        gap: 20px !important;
+    }
+
+    /* 2. 메인 선택 버튼 (가로 180px, 세로 180px) */
     .main-btn-container div.stButton > button {
-        width: 180px !important; height: 180px !important;
-        font-size: 22px !important; font-weight: bold !important;
-        border-radius: 25px !important; margin: 0 auto; display: block;
+        width: 180px !important; 
+        height: 180px !important;
+        font-size: 22px !important; 
+        font-weight: bold !important;
+        border-radius: 25px !important; 
+        margin: 0 auto; 
+        display: block;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
     
-    /* 뒤로 가기 버튼 (180x60, 노란색) */
+    /* 3. 뒤로 가기 버튼 (가로 180px, 세로 60px, 노란색) */
     .yellow-btn-container div.stButton > button {
         background-color: #FFD700 !important;
         color: #333 !important;
-        height: 60px !important; width: 180px !important;
-        border: none !important; font-size: 18px !important;
-        border-radius: 12px !important; font-weight: bold !important;
-        margin: 0 auto; display: block;
+        height: 60px !important;
+        width: 180px !important;
+        border: none !important;
+        font-size: 18px !important;
+        border-radius: 12px !important;
+        font-weight: bold !important;
+        margin: 0 auto;
+        display: block;
     }
     
-    .back-spacer { margin-top: 100px; }
+    /* 4. 세로 간격 100px */
+    .back-spacer {
+        margin-top: 100px;
+    }
+    
     .center-text { text-align: center; padding: 20px; }
     .welcome-title { font-size: 46px; font-weight: 800; margin-bottom: 10px; color: #1E1E1E; }
     .sub-title { font-size: 24px; color: #666; margin-bottom: 50px; }
@@ -110,7 +125,6 @@ if st.session_state.is_admin and st.session_state.page == 'admin':
         df['일자'] = df['일시'].dt.day
         df['시간'] = df['일시'].dt.hour
         
-        # 🔍 필터 섹션 (이용목록 추가)
         with st.expander("🔍 상세 필터링 설정", expanded=True):
             f_col1, f_col2 = st.columns(2)
             with f_col1:
@@ -122,10 +136,8 @@ if st.session_state.is_admin and st.session_state.page == 'admin':
             with f_col3:
                 selected_ages = st.multiselect("연령대", options=AGE_GROUPS, default=AGE_GROUPS)
             with f_col4:
-                # [수정 1] 필터에 이용목록 추가
                 selected_purposes = st.multiselect("이용 목적", options=PURPOSES, default=PURPOSES)
 
-        # 필터 마스크 적용
         mask = (df['일시'].dt.date >= date_range[0]) & (df['일시'].dt.date <= date_range[1]) & \
                (df['성별'].isin(selected_gender)) & (df['연령대'].isin(selected_ages)) & \
                (df['이용목록'].isin(selected_purposes))
@@ -140,7 +152,6 @@ if st.session_state.is_admin and st.session_state.page == 'admin':
             key="data_editor"
         )
 
-        # [수정 2] 버튼 배치 조정 (저장 버튼 바로 아래에 엑셀 추출 버튼 배치)
         save_btn_col, excel_btn_col = st.columns([1, 1])
         with save_btn_col:
             if st.button("💾 변경사항 최종 저장", use_container_width=True):
@@ -148,22 +159,18 @@ if st.session_state.is_admin and st.session_state.page == 'admin':
                     final_df = pd.concat([df[~mask], edited_df], ignore_index=True)
                     save_cols = ["일시", "요일", "월", "성별", "연령대", "이용목록"]
                     final_df[save_cols].to_csv(DB_FILE, index=False, encoding='utf-8-sig')
-                    st.success("변경사항이 성공적으로 저장되었습니다!")
+                    st.success("저장 완료!")
                     time.sleep(1)
                     st.rerun()
-                except Exception as e: st.error(f"저장 오류: {e}")
+                except Exception as e: st.error(f"오류: {e}")
         
         with excel_btn_col:
-            st.download_button(
-                "📥 필터링 데이터 엑셀 추출", 
-                data=create_excel_report(f_df), 
-                file_name=f"라미그라운드_현황_{datetime.now().strftime('%Y%m%d')}.xlsx",
-                use_container_width=True
-            )
+            st.download_button("📥 필터링 데이터 엑셀 추출", data=create_excel_report(f_df), 
+                               file_name=f"라미그라운드_현황_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                               use_container_width=True)
 
         st.divider()
 
-        # 📈 시각화 분석
         if not f_df.empty:
             c1, c2 = st.columns(2)
             with c1: st.plotly_chart(px.pie(f_df, names='성별', title='성별 비중', hole=0.4), use_container_width=True)
@@ -176,7 +183,7 @@ if st.session_state.is_admin and st.session_state.page == 'admin':
             with c4:
                 hour_trend = f_df['시간'].value_counts().sort_index().reset_index()
                 st.plotly_chart(px.line(hour_trend, x='시간', y='count', title='시간대별 방문 패턴', markers=True), use_container_width=True)
-        else: st.info("조건에 맞는 데이터가 없습니다.")
+    else: st.info("데이터가 없습니다.")
 
 # [B] 사용자 페이지: 성별
 elif st.session_state.page == 'gender':
@@ -232,7 +239,7 @@ elif st.session_state.page == 'purpose':
         if st.button("뒤로 가기", key="back_to_age"): st.session_state.page = 'age'; st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
-# [E] 사용자 페이지: 완료
+# [E] 사용자 페이지: 완료 (2초 대기)
 elif st.session_state.page == 'complete':
     st.balloons()
     st.markdown("<div class='center-text' style='margin-top:100px;'><div class='welcome-title'>✅ 접수 완료!</div><div class='sub-title'>감사합니다. 즐거운 시간 되세요!</div></div>", unsafe_allow_html=True)

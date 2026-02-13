@@ -29,16 +29,14 @@ if 'temp_data' not in st.session_state:
 
 st.set_page_config(page_title="라미그라운드 방명록", layout="wide")
 
-# --- 2. 디자인 (CSS: 가로 간격 20px 조정 및 사이즈 고정) ---
+# --- 2. 디자인 (CSS: 사용자용 버튼과 관리자용 버튼 스타일 분리) ---
 st.markdown("""
     <style>
-    /* 1. 가로 간격을 20px로 조정 */
-    [data-testid="stHorizontalBlock"] { 
-        gap: 20px !important; 
-    }
+    /* 가로 간격 고정 */
+    [data-testid="stHorizontalBlock"] { gap: 20px !important; }
 
-    /* 2. 메인 버튼 (180x180) 고정 */
-    div[data-testid="stButton"] button:not(.back-btn) {
+    /* [사용자 페이지 전용] 메인 버튼 (180x180) */
+    .main-btn-container div[data-testid="stButton"] button {
         width: 180px !important;
         height: 180px !important;
         min-width: 180px !important;
@@ -54,7 +52,7 @@ st.markdown("""
         margin: 0 auto !important;
     }
 
-    /* 3. 뒤로 가기 버튼 (180x60, 노란색) */
+    /* [사용자 페이지 전용] 뒤로 가기 버튼 (180x60, 노란색) */
     .yellow-btn-area div[data-testid="stButton"] button {
         background-color: #FFD700 !important;
         color: #000 !important;
@@ -68,6 +66,14 @@ st.markdown("""
         border-radius: 12px !important;
         border: none !important;
         margin: 100px auto 0 !important;
+    }
+
+    /* [관리자 페이지 전용] 버튼 높이 및 폰트 표준화 */
+    .admin-btn-area div[data-testid="stButton"] button {
+        height: 50px !important;
+        font-size: 16px !important;
+        font-weight: 600 !important;
+        border-radius: 8px !important;
     }
 
     .center-text { text-align: center; padding: 20px; }
@@ -139,6 +145,8 @@ if st.session_state.is_admin and st.session_state.page == 'admin':
         st.subheader("🗑️ 데이터 편집 및 삭제")
         edited_df = st.data_editor(f_df, num_rows="dynamic", use_container_width=True, key="data_editor")
 
+        # 관리자 버튼 영역 (넓은 직사각형으로 통일)
+        st.markdown("<div class='admin-btn-area'>", unsafe_allow_html=True)
         c1, c2 = st.columns(2)
         with c1:
             if st.button("💾 변경사항 최종 저장", use_container_width=True):
@@ -149,6 +157,7 @@ if st.session_state.is_admin and st.session_state.page == 'admin':
                 except Exception as e: st.error(f"오류: {e}")
         with c2:
             st.download_button("📥 필터링 데이터 엑셀 추출", data=create_excel_report(f_df), file_name="현황.xlsx", use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
 
         st.divider()
         if not f_df.empty:
@@ -162,24 +171,28 @@ if st.session_state.is_admin and st.session_state.page == 'admin':
             with row1_2: st.plotly_chart(px.pie(f_df, names='이용목록', title='이용 목적 비중', hole=0.4), use_container_width=True)
     else: st.info("데이터가 없습니다.")
 
-# [B] 사용자 페이지: 성별 (중앙 정렬)
+# [B] 사용자 페이지: 성별
 elif st.session_state.page == 'gender':
     st.markdown("<div class='center-text'><div class='welcome-title'>라미그라운드 방문을 환영합니다! 😊</div><div class='sub-title'>성별을 선택해주세요.</div></div>", unsafe_allow_html=True)
     _, center_col, _ = st.columns([1, 4, 1]) 
     with center_col:
+        st.markdown("<div class='main-btn-container'>", unsafe_allow_html=True)
         c1, c2 = st.columns(2)
         if c1.button("남성"): st.session_state.temp_data['gender'] = "남성"; st.session_state.page = 'age'; st.rerun()
         if c2.button("여성"): st.session_state.temp_data['gender'] = "여성"; st.session_state.page = 'age'; st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
 
-# [C] 사용자 페이지: 연령대 (중앙 정렬)
+# [C] 사용자 페이지: 연령대
 elif st.session_state.page == 'age':
     st.markdown("<div class='center-text'><div class='sub-title'>연령대를 선택해주세요.</div></div>", unsafe_allow_html=True)
     _, center_col, _ = st.columns([1, 6, 1]) 
     with center_col:
+        st.markdown("<div class='main-btn-container'>", unsafe_allow_html=True)
         c1, c2, c3 = st.columns(3)
         for i, age in enumerate(AGE_GROUPS):
             if [c1, c2, c3][i % 3].button(age):
                 st.session_state.temp_data['age'] = age; st.session_state.page = 'purpose'; st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
     
     _, back_col, _ = st.columns([1, 1, 1])
     with back_col:
@@ -187,11 +200,12 @@ elif st.session_state.page == 'age':
         if st.button("뒤로 가기", key="back_to_gender"): st.session_state.page = 'gender'; st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
-# [D] 사용자 페이지: 이용 목적 (중앙 정렬)
+# [D] 사용자 페이지: 이용 목적
 elif st.session_state.page == 'purpose':
     st.markdown("<div class='center-text'><div class='sub-title'>오늘 이용 목적은 무엇인가요?</div></div>", unsafe_allow_html=True)
     _, center_col, _ = st.columns([1, 6, 1])
     with center_col:
+        st.markdown("<div class='main-btn-container'>", unsafe_allow_html=True)
         c1, c2, c3 = st.columns(3)
         for i, purp in enumerate(PURPOSES):
             if [c1, c2, c3][i % 3].button(purp):
@@ -201,6 +215,7 @@ elif st.session_state.page == 'purpose':
                 df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
                 df.to_csv(DB_FILE, index=False, encoding='utf-8-sig')
                 st.session_state.page = 'complete'; st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
 
     _, back_col, _ = st.columns([1, 1, 1])
     with back_col:

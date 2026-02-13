@@ -29,48 +29,64 @@ if 'temp_data' not in st.session_state:
 
 st.set_page_config(page_title="라미그라운드 방명록", layout="wide")
 
-# --- 2. 디자인 (강력한 CSS 스타일링) ---
+# --- 2. 디자인 (초강력 CSS: 절대 변하지 않는 사이즈 고정) ---
 st.markdown("""
     <style>
-    /* 1. 기본 간격 설정 */
+    /* 1. 기본 간격 */
     [data-testid="stHorizontalBlock"] {
         gap: 20px !important;
     }
 
-    /* 2. 메인 선택 버튼 (180x180) 강제 적용 */
+    /* 2. 메인 선택 버튼 (180x180) - 모든 상태에 대해 강제 고정 */
     .main-btn-container div[data-testid="stButton"] button {
+        min-width: 180px !important;
+        max-width: 180px !important;
+        min-height: 180px !important;
+        max-height: 180px !important;
         width: 180px !important;
         height: 180px !important;
-        font-size: 22px !important;
-        font-weight: bold !important;
+        font-size: 24px !important;
+        font-weight: 800 !important;
         border-radius: 25px !important;
         margin: 0 auto !important;
-        display: block !important;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        box-shadow: 0 6px 10px rgba(0,0,0,0.15) !important;
+        white-space: normal !important;
+        word-break: keep-all !important;
     }
     
-    /* 3. 뒤로 가기 버튼 (180x60, 노란색) 강제 적용 */
+    /* 3. 뒤로 가기 버튼 (180x60, 노란색) - 초강력 고정 */
     .yellow-btn-container div[data-testid="stButton"] button {
         background-color: #FFD700 !important;
-        color: #333 !important;
-        height: 60px !important;
+        color: #000000 !important;
+        min-width: 180px !important;
+        max-width: 180px !important;
+        min-height: 60px !important;
+        max-height: 60px !important;
         width: 180px !important;
-        border: none !important;
-        font-size: 18px !important;
+        height: 60px !important;
+        border: 2px solid #CCAC00 !important;
+        font-size: 20px !important;
+        font-weight: 900 !important;
         border-radius: 12px !important;
-        font-weight: bold !important;
         margin: 0 auto !important;
-        display: block !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
     }
     
     /* 4. 세로 간격 100px */
     .back-spacer {
         margin-top: 100px;
+        display: block;
+        height: 1px;
     }
     
     .center-text { text-align: center; padding: 20px; }
-    .welcome-title { font-size: 46px; font-weight: 800; margin-bottom: 10px; color: #1E1E1E; }
-    .sub-title { font-size: 24px; color: #666; margin-bottom: 50px; }
+    .welcome-title { font-size: 48px; font-weight: 900; margin-bottom: 10px; color: #1E1E1E; }
+    .sub-title { font-size: 26px; color: #444; margin-bottom: 60px; font-weight: 600; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -152,7 +168,7 @@ if st.session_state.is_admin and st.session_state.page == 'admin':
                 except Exception as e: st.error(f"오류: {e}")
         
         with excel_btn_col:
-            st.download_button("📥 엑셀 추출", data=create_excel_report(f_df), file_name="현황.xlsx", use_container_width=True)
+            st.download_button("📥 필터링 데이터 엑셀 추출", data=create_excel_report(f_df), file_name="현황.xlsx", use_container_width=True)
 
         st.divider()
         if not f_df.empty:

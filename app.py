@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 import os
 import io
 import time
+from typing import Optional, Dict, Any
 
 # --- 1. 기본 설정 및 데이터 로드 ---
 DB_FILE = "visitor_log.csv"
@@ -30,52 +31,79 @@ if "temp_data" not in st.session_state:
 
 st.set_page_config(page_title="라미그라운드 방명록", layout="wide")
 
-# --- 2. 디자인 (CSS: 모든 수단을 동원한 사이즈 박제) ---
+# --- 2. 디자인 (CSS: 버튼 180px 고정 + 관리자 버튼 격리) ---
 st.markdown(
     """
     <style>
     /* 전체 화면 가로 간격 20px 고정 */
-    [data-testid="stHorizontalBlock"] {
-        gap: 20px !important;
+    [data-testid="stHorizontalBlock"] { gap: 20px !important; }
+
+    /* ===== 사용자 버튼 180px 완전 고정 ===== */
+    .main-btn-container{
+        display: flex;
+        justify-content: center;
+        gap: 25px;
+        flex-wrap: wrap;
     }
 
-    /* 1. 사용자 페이지: 메인 버튼 (180x180) 강제 박제 */
-    .main-btn-container [data-testid="stButton"] button {
+    /* Streamlit 컬럼 컨테이너(버전마다 testid가 달라질 수 있어서 다 잡음) */
+    .main-btn-container div[data-testid="stColumn"],
+    .main-btn-container div[data-testid="column"]{
+        flex: 0 0 auto !important;
+        width: 180px !important;
+        max-width: 180px !important;
+    }
+
+    /* 실제 버튼: stButton 구조 전체에서 버튼만 정확히 잡기 */
+    .main-btn-container [data-testid="stButton"] button{
         width: 180px !important;
         height: 180px !important;
         min-width: 180px !important;
         min-height: 180px !important;
         max-width: 180px !important;
         max-height: 180px !important;
+
         font-size: 24px !important;
         font-weight: 800 !important;
         border-radius: 25px !important;
-        display: inline-block !important;
-        box-shadow: 0 6px 12px rgba(0,0,0,0.15) !important;
+
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+
+        box-shadow: 0 6px 14px rgba(0,0,0,0.15) !important;
         flex-shrink: 0 !important;
     }
 
-    /* 2. 사용자 페이지: 뒤로 가기 버튼 (180x60, 노란색) 강제 박제 */
-    .yellow-btn-area [data-testid="stButton"] button {
+    .main-btn-container [data-testid="stButton"] button:hover{
+        transform: scale(1.05);
+        transition: 0.1s;
+    }
+
+    /* ===== 뒤로 가기 버튼 (180x60) ===== */
+    .yellow-btn-area [data-testid="stButton"] button{
         background-color: #FFD700 !important;
         color: #000000 !important;
+
         width: 180px !important;
         height: 60px !important;
         min-width: 180px !important;
         min-height: 60px !important;
         max-width: 180px !important;
         max-height: 60px !important;
+
         font-size: 20px !important;
         font-weight: 900 !important;
         border-radius: 12px !important;
         border: 2px solid #CCAC00 !important;
-        margin-top: 100px !important; /* 상단 여백 100px */
+
+        margin-top: 80px !important;
         display: inline-block !important;
         flex-shrink: 0 !important;
     }
 
-    /* 3. 관리자 페이지 버튼: 직사각형으로 통일 (사용자 버튼의 영향을 받지 않도록 격리) */
-    .admin-btn-area [data-testid="stButton"] button {
+    /* ===== 관리자 페이지 버튼: 직사각형 ===== */
+    .admin-btn-area [data-testid="stButton"] button{
         height: 50px !important;
         width: 100% !important;
         min-width: 0px !important;
@@ -94,22 +122,19 @@ st.markdown(
 )
 
 # --- 3. 유틸리티 함수 ---
-def get_kst_now():
+def get_kst_now() -> datetime:
     return datetime.utcnow() + timedelta(hours=9)
-
 
 def get_korean_weekday(dt: datetime) -> str:
     # Monday=0 ... Sunday=6
     days = ["월", "화", "수", "목", "금", "토", "일"]
     return days[dt.weekday()]
 
-
-def create_excel_report(df: pd.DataFrame, meta: dict | None = None) -> bytes:
+def create_excel_report(df: pd.DataFrame, meta: Optional[Dict[str, Any]] = None) -> bytes:
     output = io.BytesIO()
 
     temp_df = df.copy()
     if temp_df.empty:
-        # 빈 데이터도 시트는 생성되도록 처리
         with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
             pd.DataFrame().to_excel(writer, index=False, sheet_name="원본데이터")
             if meta:
@@ -148,18 +173,10 @@ def create_excel_report(df: pd.DataFrame, meta: dict | None = None) -> bytes:
 
     with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
         export_cols = [
-            "일시",
-            "요일",
-            "연도",
-            "월",
-            "일자",
-            "시간",
-            "월-일",
-            "ISO주차",
-            "연-주",
-            "성별",
-            "연령대",
-            "이용목록",
+            "일시", "요일",
+            "연도", "월", "일자", "시간",
+            "월-일", "ISO주차", "연-주",
+            "성별", "연령대", "이용목록",
         ]
         existing_cols = [c for c in export_cols if c in temp_df.columns]
         temp_df[existing_cols].to_excel(writer, index=False, sheet_name="원본데이터")
@@ -175,7 +192,6 @@ def create_excel_report(df: pd.DataFrame, meta: dict | None = None) -> bytes:
             pd.DataFrame([meta]).to_excel(writer, index=False, sheet_name="필터정보")
 
     return output.getvalue()
-
 
 # --- 4. 사이드바(관리자 로그인/로그아웃) ---
 with st.sidebar:
@@ -355,7 +371,7 @@ if st.session_state.is_admin and st.session_state.page == "admin":
             heat["일시"] = pd.to_datetime(heat["일시"], errors="coerce")
             heat["시간"] = heat["일시"].dt.hour
 
-            # 요일이 과거 데이터 때문에 영문/한글 섞일 수 있으면, 아래 한 줄로 재계산도 가능
+            # 과거 데이터에 영문 요일이 섞일 가능성이 있으면, 아래 한 줄을 켜서 강제 한글화 가능
             # heat["요일"] = heat["일시"].apply(get_korean_weekday)
 
             weekday_order = ["월", "화", "수", "목", "금", "토", "일"]
@@ -388,8 +404,10 @@ if st.session_state.is_admin and st.session_state.page == "admin":
 # =========================
 elif st.session_state.page == "gender":
     st.markdown(
-        "<div class='center-text'><div class='welcome-title'>라미그라운드 방문을 환영합니다! 😊</div>"
-        "<div class='sub-title'>성별을 선택해주세요.</div></div>",
+        "<div class='center-text'>"
+        "<div class='welcome-title'>라미그라운드 방문을 환영합니다! 😊</div>"
+        "<div class='sub-title'>성별을 선택해주세요.</div>"
+        "</div>",
         unsafe_allow_html=True,
     )
     _, center_col, _ = st.columns([1, 4, 1])
@@ -410,7 +428,10 @@ elif st.session_state.page == "gender":
 # [C] 사용자 페이지: 연령대
 # =========================
 elif st.session_state.page == "age":
-    st.markdown("<div class='center-text'><div class='sub-title'>연령대를 선택해주세요.</div></div>", unsafe_allow_html=True)
+    st.markdown(
+        "<div class='center-text'><div class='sub-title'>연령대를 선택해주세요.</div></div>",
+        unsafe_allow_html=True,
+    )
     _, center_col, _ = st.columns([1, 6, 1])
     with center_col:
         st.markdown("<div class='main-btn-container'>", unsafe_allow_html=True)
@@ -435,7 +456,10 @@ elif st.session_state.page == "age":
 # [D] 사용자 페이지: 이용 목적
 # =========================
 elif st.session_state.page == "purpose":
-    st.markdown("<div class='center-text'><div class='sub-title'>오늘 이용 목적은 무엇인가요?</div></div>", unsafe_allow_html=True)
+    st.markdown(
+        "<div class='center-text'><div class='sub-title'>오늘 이용 목적은 무엇인가요?</div></div>",
+        unsafe_allow_html=True,
+    )
     _, center_col, _ = st.columns([1, 6, 1])
     with center_col:
         st.markdown("<div class='main-btn-container'>", unsafe_allow_html=True)
@@ -445,7 +469,7 @@ elif st.session_state.page == "purpose":
                 now = get_kst_now()
                 new_row = {
                     "일시": now.strftime("%Y-%m-%d %H:%M:%S"),
-                    "요일": get_korean_weekday(now),  # ✅ 한글 요일
+                    "요일": get_korean_weekday(now),  # ✅ 한글 요일 저장
                     "월": now.month,
                     "성별": st.session_state.temp_data["gender"],
                     "연령대": st.session_state.temp_data["age"],
@@ -475,7 +499,8 @@ elif st.session_state.page == "complete":
     st.markdown(
         "<div class='center-text' style='margin-top:100px;'>"
         "<div class='welcome-title'>✅ 접수 완료!</div>"
-        "<div class='sub-title'>감사합니다. 즐거운 시간 되세요!</div></div>",
+        "<div class='sub-title'>감사합니다. 즐거운 시간 되세요!</div>"
+        "</div>",
         unsafe_allow_html=True,
     )
     time.sleep(2.0)

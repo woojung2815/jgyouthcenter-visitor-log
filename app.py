@@ -29,7 +29,7 @@ if 'temp_data' not in st.session_state:
 
 st.set_page_config(page_title="라미그라운드 방명록", layout="wide")
 
-# --- 2. 디자인 (메인 버튼 및 뒤로가기 버튼 스타일) ---
+# --- 2. 디자인 (CSS) ---
 st.markdown("""
     <style>
     /* 메인 선택 버튼 (180x180) */
@@ -38,18 +38,26 @@ st.markdown("""
         font-size: 20px !important; font-weight: bold !important;
         border-radius: 20px !important; margin: 10px auto; display: block;
     }
-    /* 뒤로 가기 버튼 전용 스타일 (180x60, 노란색) */
-    div.back-container > div.stButton > button {
-        width: 180px !important; height: 60px !important;
+    
+    /* 뒤로 가기 버튼 전용 스타일 (180x60, 노란색, 중앙 정렬, 상단 여백 200px) */
+    div.back-container {
+        display: flex;
+        justify-content: center;
+        margin-top: 200px !important; /* 상단 버튼들과의 간격 */
+        width: 100%;
+    }
+    
+    div.back-container div.stButton > button {
+        width: 180px !important;
+        height: 60px !important;
         background-color: #FFD700 !important; /* 노란색 */
         color: #333 !important;
         font-size: 18px !important;
         font-weight: bold !important;
         border-radius: 10px !important;
         border: none !important;
-        margin: 40px auto 0px auto !important; /* 위쪽 여백 */
-        display: block;
     }
+    
     .center-text { text-align: center; padding: 20px; }
     .welcome-title { font-size: 42px; font-weight: 800; margin-bottom: 10px; }
     .sub-title { font-size: 24px; color: #555; margin-bottom: 40px; }
@@ -174,7 +182,7 @@ elif st.session_state.page == 'age':
         with cols[i % 3]:
             if st.button(age): st.session_state.temp_data['age'] = age; st.session_state.page = 'purpose'; st.rerun()
     
-    # 뒤로 가기 버튼 (중앙 배치)
+    # 뒤로 가기 버튼 컨테이너 (중앙 정렬 및 상단 여백)
     st.markdown("<div class='back-container'>", unsafe_allow_html=True)
     if st.button("뒤로 가기"):
         st.session_state.page = 'gender'; st.rerun()
@@ -194,7 +202,7 @@ elif st.session_state.page == 'purpose':
                 df.to_csv(DB_FILE, index=False, encoding='utf-8-sig')
                 st.session_state.page = 'complete'; st.rerun()
     
-    # 뒤로 가기 버튼 (중앙 배치)
+    # 뒤로 가기 버튼 컨테이너 (중앙 정렬 및 상단 여백)
     st.markdown("<div class='back-container'>", unsafe_allow_html=True)
     if st.button("뒤로 가기"):
         st.session_state.page = 'age'; st.rerun()

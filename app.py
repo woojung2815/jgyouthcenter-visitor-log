@@ -29,30 +29,32 @@ if 'temp_data' not in st.session_state:
 
 st.set_page_config(page_title="라미그라운드 방명록", layout="wide")
 
-# --- 2. 디자인 (CSS: 사용자용 버튼과 관리자용 버튼 스타일 분리) ---
+# --- 2. 디자인 (CSS: 사용자/관리자 스타일 완전 분리 및 사이즈 강제) ---
 st.markdown("""
     <style>
-    /* 가로 간격 고정 */
+    /* 공통: 가로 간격 20px */
     [data-testid="stHorizontalBlock"] { gap: 20px !important; }
 
-    /* [사용자 페이지 전용] 메인 버튼 (180x180) */
+    /* [사용자 페이지] 메인 버튼 (180x180) 강제 고정 */
     .main-btn-container div[data-testid="stButton"] button {
         width: 180px !important;
         height: 180px !important;
         min-width: 180px !important;
         min-height: 180px !important;
-        flex-shrink: 0 !important;
+        max-width: 180px !important;
+        max-height: 180px !important;
         font-size: 24px !important;
         font-weight: 800 !important;
         border-radius: 25px !important;
-        box-shadow: 0 6px 12px rgba(0,0,0,0.15) !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
         margin: 0 auto !important;
+        box-shadow: 0 6px 12px rgba(0,0,0,0.15) !important;
+        flex-shrink: 0 !important;
     }
 
-    /* [사용자 페이지 전용] 뒤로 가기 버튼 (180x60, 노란색) */
+    /* [사용자 페이지] 뒤로 가기 버튼 (180x60, 노란색) 강제 고정 */
     .yellow-btn-area div[data-testid="stButton"] button {
         background-color: #FFD700 !important;
         color: #000 !important;
@@ -60,17 +62,23 @@ st.markdown("""
         height: 60px !important;
         min-width: 180px !important;
         min-height: 60px !important;
-        flex-shrink: 0 !important;
+        max-width: 180px !important;
+        max-height: 60px !important;
         font-size: 20px !important;
         font-weight: 900 !important;
         border-radius: 12px !important;
         border: none !important;
         margin: 100px auto 0 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        flex-shrink: 0 !important;
     }
 
-    /* [관리자 페이지 전용] 버튼 높이 및 폰트 표준화 */
+    /* [관리자 페이지] 버튼 스타일 (일반 직사각형) */
     .admin-btn-area div[data-testid="stButton"] button {
         height: 50px !important;
+        width: 100% !important;
         font-size: 16px !important;
         font-weight: 600 !important;
         border-radius: 8px !important;
@@ -145,7 +153,7 @@ if st.session_state.is_admin and st.session_state.page == 'admin':
         st.subheader("🗑️ 데이터 편집 및 삭제")
         edited_df = st.data_editor(f_df, num_rows="dynamic", use_container_width=True, key="data_editor")
 
-        # 관리자 버튼 영역 (넓은 직사각형으로 통일)
+        # 관리자 버튼 영역
         st.markdown("<div class='admin-btn-area'>", unsafe_allow_html=True)
         c1, c2 = st.columns(2)
         with c1:
@@ -164,11 +172,11 @@ if st.session_state.is_admin and st.session_state.page == 'admin':
             st.subheader("📅 일자별 방문 추이")
             daily_counts = f_df['일시'].dt.date.value_counts().sort_index().reset_index()
             daily_counts.columns = ['날짜', '방문자 수']
-            st.plotly_chart(px.line(daily_counts, x='날짜', y='방문자 수', markers=True, title="일자별 방문객 흐름"), use_container_width=True)
+            st.plotly_chart(px.line(daily_counts, x='날짜', y='방문자 수', markers=True), use_container_width=True)
 
-            row1_1, row1_2 = st.columns(2)
-            with row1_1: st.plotly_chart(px.pie(f_df, names='성별', title='성별 비중', hole=0.4), use_container_width=True)
-            with row1_2: st.plotly_chart(px.pie(f_df, names='이용목록', title='이용 목적 비중', hole=0.4), use_container_width=True)
+            r1, r2 = st.columns(2)
+            with r1: st.plotly_chart(px.pie(f_df, names='성별', title='성별 비중', hole=0.4), use_container_width=True)
+            with r2: st.plotly_chart(px.pie(f_df, names='이용목록', title='이용 목적 비중', hole=0.4), use_container_width=True)
     else: st.info("데이터가 없습니다.")
 
 # [B] 사용자 페이지: 성별

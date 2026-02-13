@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 import os
 import io
 import time
@@ -46,17 +46,11 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# --- 2-1. 버튼 사이즈 "확실히" 고정 (중요)
-# Streamlit은 markdown div로 위젯을 감쌀 수 없어서 CSS만으로는 종종 안 먹습니다.
-# 그래서 JS(MutationObserver)로 버튼 텍스트 기준으로 크기를 강제합니다.
+# --- 2-1. 버튼 사이즈 강제 고정 (JS: Streamlit DOM 변화에도 유지) ---
 def inject_button_sizer():
-    # 사용자(키오스크)용 큰 버튼 텍스트 목록
     kiosk_texts = ["남성", "여성"] + AGE_GROUPS + PURPOSES
-    # JS에서 사용할 배열 문자열
     kiosk_js_array = "[" + ",".join([f'"{t}"' for t in kiosk_texts]) + "]"
 
-    # 관리자용 버튼은 “큰 버튼 적용 제외” (관리자 페이지는 보통 긴 문구가 들어가므로 텍스트 기준으로 구분)
-    # 필요하면 여기에 관리자 버튼 텍스트를 더 추가해서 강제 스타일링 가능
     admin_texts = [
         "💾 변경사항 최종 저장",
         "📥 필터링 데이터 엑셀(원본+집계+필터정보)",
@@ -65,10 +59,9 @@ def inject_button_sizer():
     ]
     admin_js_array = "[" + ",".join([f'"{t}"' for t in admin_texts]) + "]"
 
-    # 현재 페이지 정보
     page = st.session_state.get("page", "gender")
     is_admin = bool(st.session_state.get("is_admin", False))
-    page_js = "true" if (is_admin and page == "admin") else "false"
+    is_admin_page_js = "true" if (is_admin and page == "admin") else "false"
 
     components.html(
         f"""
@@ -76,10 +69,9 @@ def inject_button_sizer():
         (function() {{
             const kioskTexts = {kiosk_js_array};
             const adminTexts = {admin_js_array};
-            const isAdminPage = {page_js};
+            const isAdminPage = {is_admin_page_js};
 
             function applyStyles() {{
-                // Streamlit 메인 영역(사이드바 제외)
                 const main = window.parent.document.querySelector('[data-testid="stMain"]');
                 if (!main) return;
 
@@ -87,7 +79,7 @@ def inject_button_sizer():
                 buttons.forEach(btn => {{
                     const t = (btn.innerText || "").trim();
 
-                    // 기본 리셋(페이지 전환 시 잔상 방지)
+                    // reset
                     btn.style.width = "";
                     btn.style.height = "";
                     btn.style.minWidth = "";
@@ -105,20 +97,17 @@ def inject_button_sizer():
                     btn.style.color = "";
                     btn.style.border = "";
 
-                    // 관리자 페이지: 키오스크 버튼 크기 적용하지 않음
                     if (isAdminPage) {{
-                        // 그래도 관리자 핵심 버튼은 보기 좋게 통일하고 싶으면 아래처럼 텍스트 기준으로 적용
                         if (adminTexts.includes(t)) {{
                             btn.style.height = "50px";
                             btn.style.fontSize = "16px";
                             btn.style.fontWeight = "600";
                             btn.style.borderRadius = "8px";
-                            // width는 Streamlit이 100%로 주는 경우가 많아 굳이 고정 안 함
                         }}
                         return;
                     }}
 
-                    // 사용자 페이지: 큰 버튼 적용(텍스트 기준)
+                    // kiosk big buttons
                     if (kioskTexts.includes(t)) {{
                         btn.style.width = "180px";
                         btn.style.height = "180px";
@@ -135,7 +124,7 @@ def inject_button_sizer():
                         btn.style.boxShadow = "0 6px 14px rgba(0,0,0,0.15)";
                     }}
 
-                    // 뒤로가기 버튼
+                    // back button
                     if (t === "뒤로 가기") {{
                         btn.style.width = "180px";
                         btn.style.height = "60px";
@@ -154,19 +143,15 @@ def inject_button_sizer():
                 }});
             }}
 
-            // 최초 1회 + 렌더링 지연 대비 재시도
             applyStyles();
             setTimeout(applyStyles, 50);
             setTimeout(applyStyles, 200);
             setTimeout(applyStyles, 500);
 
-            // Streamlit rerun/DOM 변경에도 계속 유지
-            const mainRoot = window.parent.document.body;
-            if (mainRoot && !window.parent.__kioskButtonObserver) {{
-                const obs = new MutationObserver(() => {{
-                    applyStyles();
-                }});
-                obs.observe(mainRoot, {{ childList: true, subtree: true }});
+            const root = window.parent.document.body;
+            if (root && !window.parent.__kioskButtonObserver) {{
+                const obs = new MutationObserver(() => applyStyles());
+                obs.observe(root, {{ childList: true, subtree: true }});
                 window.parent.__kioskButtonObserver = obs;
             }}
         }})();
@@ -186,6 +171,11 @@ def get_korean_weekday(dt: datetime) -> str:
     days = ["월", "화", "수", "목", "금", "토", "일"]
     return days[dt.weekday()]
 
+def iso_week_date_range(year: int, week: int) -> tuple[date, date]:
+    start = date.fromisocalendar(year, week, 1)  # Monday
+    end = date.fromisocalendar(year, week, 7)    # Sunday
+    return start, end
+
 def create_excel_report(df: pd.DataFrame, meta: Optional[Dict[str, Any]] = None) -> bytes:
     output = io.BytesIO()
 
@@ -204,8 +194,11 @@ def create_excel_report(df: pd.DataFrame, meta: Optional[Dict[str, Any]] = None)
     temp_df["일자"] = temp_df["일시"].dt.day
     temp_df["시간"] = temp_df["일시"].dt.hour
     temp_df["월-일"] = temp_df["일시"].dt.strftime("%m-%d")
-    temp_df["ISO주차"] = temp_df["일시"].dt.isocalendar().week.astype(int)
-    temp_df["연-주"] = temp_df["일시"].dt.year.astype(str) + "-W" + temp_df["ISO주차"].astype(str).str.zfill(2)
+
+    iso = temp_df["일시"].dt.isocalendar()
+    temp_df["ISO연도"] = iso.year.astype(int)
+    temp_df["ISO주차"] = iso.week.astype(int)
+    temp_df["연-주"] = temp_df["ISO연도"].astype(str) + "-W" + temp_df["ISO주차"].astype(str).str.zfill(2)
 
     daily = temp_df["월-일"].value_counts().sort_index().reset_index()
     daily.columns = ["월-일", "방문자 수"]
@@ -229,7 +222,7 @@ def create_excel_report(df: pd.DataFrame, meta: Optional[Dict[str, Any]] = None)
         export_cols = [
             "일시", "요일",
             "연도", "월", "일자", "시간",
-            "월-일", "ISO주차", "연-주",
+            "월-일", "ISO연도", "ISO주차", "연-주",
             "성별", "연령대", "이용목록",
         ]
         existing_cols = [c for c in export_cols if c in temp_df.columns]
@@ -246,6 +239,29 @@ def create_excel_report(df: pd.DataFrame, meta: Optional[Dict[str, Any]] = None)
             pd.DataFrame([meta]).to_excel(writer, index=False, sheet_name="필터정보")
 
     return output.getvalue()
+
+def compute_period_dates(option: str, df_min: date, df_max: date) -> tuple[date, date]:
+    """
+    option: "최근 1주", "최근 1달", "기간 설정"
+    """
+    today_kst = get_kst_now().date()
+    if option == "최근 1주":
+        start = today_kst - timedelta(days=6)
+        end = today_kst
+        # 데이터 범위 밖으로 나가지 않게
+        start = max(start, df_min)
+        end = min(end, df_max)
+        return start, end
+
+    if option == "최근 1달":
+        start = today_kst - timedelta(days=29)
+        end = today_kst
+        start = max(start, df_min)
+        end = min(end, df_max)
+        return start, end
+
+    # 기간 설정: 기본값은 전체(필터 결과 기준)
+    return df_min, df_max
 
 # --- 4. 사이드바(관리자 로그인/로그아웃) ---
 with st.sidebar:
@@ -343,15 +359,19 @@ if st.session_state.is_admin and st.session_state.page == "admin":
         if f_df.empty:
             st.info("필터 조건에 해당하는 데이터가 없습니다.")
         else:
+            # ---------------------------
+            # ✅ 리포트 요약
+            # ---------------------------
             st.subheader("🧾 리포트 요약")
 
             temp = f_df.copy()
             temp["일시"] = pd.to_datetime(temp["일시"], errors="coerce")
             temp["날짜"] = temp["일시"].dt.date
             temp["월"] = temp["일시"].dt.to_period("M").astype(str)
-            temp["주"] = temp["일시"].dt.isocalendar().week.astype(int)
-            temp["연도"] = temp["일시"].dt.year.astype(int)
-            temp["연-주"] = temp["연도"].astype(str) + "-W" + temp["주"].astype(str).str.zfill(2)
+
+            iso = temp["일시"].dt.isocalendar()
+            temp["ISO연도"] = iso.year.astype(int)
+            temp["ISO주차"] = iso.week.astype(int)
 
             total_visits = len(temp)
             daily_avg = round(total_visits / max(1, temp["날짜"].nunique()), 2)
@@ -378,34 +398,68 @@ if st.session_state.is_admin and st.session_state.page == "admin":
                 st.dataframe(monthly, use_container_width=True, hide_index=True)
 
             with c2:
-                st.markdown("**📌 주별 방문(ISO 주차)**")
-                weekly = temp["연-주"].value_counts().sort_index().reset_index()
-                weekly.columns = ["연-주", "방문자 수"]
+                st.markdown("**📌 주별 방문 (ISO 주차 + 기간)**")
+                weekly_raw = (
+                    temp.groupby(["ISO연도", "ISO주차"])
+                    .size()
+                    .reset_index(name="방문자 수")
+                    .sort_values(["ISO연도", "ISO주차"])
+                )
+
+                def make_week_label(row):
+                    y = int(row["ISO연도"])
+                    w = int(row["ISO주차"])
+                    s, e = iso_week_date_range(y, w)
+                    # 요청 형식: (2026-00-00~2026-00-00)
+                    return f"{y}-W{w:02d} ({s.isoformat()}~{e.isoformat()})"
+
+                weekly_raw["주(기간)"] = weekly_raw.apply(make_week_label, axis=1)
+                weekly = weekly_raw[["주(기간)", "방문자 수"]]
                 st.dataframe(weekly, use_container_width=True, hide_index=True)
 
             st.divider()
 
+            # ---------------------------
+            # ✅ 일자별 방문 추이: 최근 1주/최근 1달/기간 설정
+            # ---------------------------
             st.subheader("📅 일자별 방문 추이")
-            daily_counts = f_df["일시"].dt.floor("D").value_counts().sort_index().reset_index()
-            daily_counts.columns = ["날짜", "방문자 수"]
 
-            fig_daily = px.line(daily_counts, x="날짜", y="방문자 수", markers=True)
-            fig_daily.update_xaxes(tickformat="%m-%d", dtick="D1", title_text="월-일")
-            st.plotly_chart(fig_daily, use_container_width=True)
+            # (필터 결과 f_df 기준으로 범위 계산)
+            f_min = f_df["일시"].min().date()
+            f_max = f_df["일시"].max().date()
 
-            st.subheader("🕒 시간대별 혼잡도 (요일 × 시간)")
-            heat = f_df.copy()
-            heat["일시"] = pd.to_datetime(heat["일시"], errors="coerce")
-            heat["시간"] = heat["일시"].dt.hour
-
-            weekday_order = ["월", "화", "수", "목", "금", "토", "일"]
-            pivot = (
-                heat.pivot_table(index="요일", columns="시간", values="일시", aggfunc="count", fill_value=0)
-                .reindex(weekday_order)
+            period_option = st.radio(
+                "조회 기간",
+                options=["최근 1주", "최근 1달", "기간 설정"],
+                horizontal=True,
             )
-            fig_heat = px.imshow(pivot, aspect="auto", labels=dict(x="시간(시)", y="요일", color="방문자 수"))
-            st.plotly_chart(fig_heat, use_container_width=True)
 
+            if period_option == "기간 설정":
+                chart_range = st.date_input(
+                    "그래프 기간(필터 결과 범위 내에서 선택)",
+                    [f_min, f_max],
+                    min_value=f_min,
+                    max_value=f_max,
+                )
+                chart_start, chart_end = chart_range[0], chart_range[1]
+            else:
+                chart_start, chart_end = compute_period_dates(period_option, f_min, f_max)
+
+            chart_df = f_df[(f_df["일시"].dt.date >= chart_start) & (f_df["일시"].dt.date <= chart_end)].copy()
+
+            if chart_df.empty:
+                st.info("선택한 기간에 해당하는 데이터가 없습니다.")
+            else:
+                daily_counts = chart_df["일시"].dt.floor("D").value_counts().sort_index().reset_index()
+                daily_counts.columns = ["날짜", "방문자 수"]
+
+                fig_daily = px.line(daily_counts, x="날짜", y="방문자 수", markers=True)
+                fig_daily.update_xaxes(tickformat="%m-%d", dtick="D1", title_text="월-일")
+                st.plotly_chart(fig_daily, use_container_width=True)
+
+            # ---------------------------
+            # ✅ 기본 파이 차트
+            # ---------------------------
             r1, r2 = st.columns(2)
             with r1:
                 st.plotly_chart(px.pie(f_df, names="성별", title="성별 비중", hole=0.4), use_container_width=True)
@@ -442,7 +496,10 @@ elif st.session_state.page == "gender":
 # [C] 사용자 페이지: 연령대
 # =========================
 elif st.session_state.page == "age":
-    st.markdown("<div class='center-text'><div class='sub-title'>연령대를 선택해주세요.</div></div>", unsafe_allow_html=True)
+    st.markdown(
+        "<div class='center-text'><div class='sub-title'>연령대를 선택해주세요.</div></div>",
+        unsafe_allow_html=True,
+    )
     _, center_col, _ = st.columns([1, 6, 1])
     with center_col:
         c1, c2, c3 = st.columns(3)
@@ -462,7 +519,10 @@ elif st.session_state.page == "age":
 # [D] 사용자 페이지: 이용 목적
 # =========================
 elif st.session_state.page == "purpose":
-    st.markdown("<div class='center-text'><div class='sub-title'>오늘 이용 목적은 무엇인가요?</div></div>", unsafe_allow_html=True)
+    st.markdown(
+        "<div class='center-text'><div class='sub-title'>오늘 이용 목적은 무엇인가요?</div></div>",
+        unsafe_allow_html=True,
+    )
     _, center_col, _ = st.columns([1, 6, 1])
     with center_col:
         c1, c2, c3 = st.columns(3)
@@ -477,9 +537,9 @@ elif st.session_state.page == "purpose":
                     "연령대": st.session_state.temp_data["age"],
                     "이용목록": purp,
                 }
-                df = pd.read_csv(DB_FILE)
-                df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
-                df.to_csv(DB_FILE, index=False, encoding="utf-8-sig")
+                df2 = pd.read_csv(DB_FILE)
+                df2 = pd.concat([df2, pd.DataFrame([new_row])], ignore_index=True)
+                df2.to_csv(DB_FILE, index=False, encoding="utf-8-sig")
                 st.session_state.page = "complete"
                 st.rerun()
 

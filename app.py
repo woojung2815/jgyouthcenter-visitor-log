@@ -29,21 +29,21 @@ if 'temp_data' not in st.session_state:
 
 st.set_page_config(page_title="라미그라운드 방명록", layout="wide")
 
-# --- 2. 디자인 (CSS: 가로 간격 확대 및 겹침 방지) ---
+# --- 2. 디자인 (CSS: 가로 간격 20px 조정 및 사이즈 고정) ---
 st.markdown("""
     <style>
-    /* 1. 가로 간격을 40px로 확대하여 겹침 방지 */
+    /* 1. 가로 간격을 20px로 조정 */
     [data-testid="stHorizontalBlock"] { 
-        gap: 40px !important; 
+        gap: 20px !important; 
     }
 
-    /* 2. 메인 버튼 (180x180) 고정 및 수축 방지 */
+    /* 2. 메인 버튼 (180x180) 고정 */
     div[data-testid="stButton"] button:not(.back-btn) {
         width: 180px !important;
         height: 180px !important;
         min-width: 180px !important;
         min-height: 180px !important;
-        flex-shrink: 0 !important; /* 태블릿에서 버튼이 작아지는 것 방지 */
+        flex-shrink: 0 !important;
         font-size: 24px !important;
         font-weight: 800 !important;
         border-radius: 25px !important;
@@ -54,7 +54,7 @@ st.markdown("""
         margin: 0 auto !important;
     }
 
-    /* 3. 뒤로 가기 버튼 (180x60, 노란색) 및 위치 고정 */
+    /* 3. 뒤로 가기 버튼 (180x60, 노란색) */
     .yellow-btn-area div[data-testid="stButton"] button {
         background-color: #FFD700 !important;
         color: #000 !important;
@@ -67,7 +67,7 @@ st.markdown("""
         font-weight: 900 !important;
         border-radius: 12px !important;
         border: none !important;
-        margin: 100px auto 0 !important; /* 상단 여백 100px 유지 */
+        margin: 100px auto 0 !important;
     }
 
     .center-text { text-align: center; padding: 20px; }
@@ -162,19 +162,19 @@ if st.session_state.is_admin and st.session_state.page == 'admin':
             with row1_2: st.plotly_chart(px.pie(f_df, names='이용목록', title='이용 목적 비중', hole=0.4), use_container_width=True)
     else: st.info("데이터가 없습니다.")
 
-# [B] 사용자 페이지: 성별 (중앙 배치)
+# [B] 사용자 페이지: 성별 (중앙 정렬)
 elif st.session_state.page == 'gender':
     st.markdown("<div class='center-text'><div class='welcome-title'>라미그라운드 방문을 환영합니다! 😊</div><div class='sub-title'>성별을 선택해주세요.</div></div>", unsafe_allow_html=True)
-    _, center_col, _ = st.columns([1, 5, 1]) 
+    _, center_col, _ = st.columns([1, 4, 1]) 
     with center_col:
         c1, c2 = st.columns(2)
         if c1.button("남성"): st.session_state.temp_data['gender'] = "남성"; st.session_state.page = 'age'; st.rerun()
         if c2.button("여성"): st.session_state.temp_data['gender'] = "여성"; st.session_state.page = 'age'; st.rerun()
 
-# [C] 사용자 페이지: 연령대 (중앙 배치)
+# [C] 사용자 페이지: 연령대 (중앙 정렬)
 elif st.session_state.page == 'age':
     st.markdown("<div class='center-text'><div class='sub-title'>연령대를 선택해주세요.</div></div>", unsafe_allow_html=True)
-    _, center_col, _ = st.columns([1, 8, 1]) 
+    _, center_col, _ = st.columns([1, 6, 1]) 
     with center_col:
         c1, c2, c3 = st.columns(3)
         for i, age in enumerate(AGE_GROUPS):
@@ -187,10 +187,10 @@ elif st.session_state.page == 'age':
         if st.button("뒤로 가기", key="back_to_gender"): st.session_state.page = 'gender'; st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
-# [D] 사용자 페이지: 이용 목적 (중앙 배치)
+# [D] 사용자 페이지: 이용 목적 (중앙 정렬)
 elif st.session_state.page == 'purpose':
     st.markdown("<div class='center-text'><div class='sub-title'>오늘 이용 목적은 무엇인가요?</div></div>", unsafe_allow_html=True)
-    _, center_col, _ = st.columns([1, 8, 1])
+    _, center_col, _ = st.columns([1, 6, 1])
     with center_col:
         c1, c2, c3 = st.columns(3)
         for i, purp in enumerate(PURPOSES):

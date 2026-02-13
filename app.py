@@ -1,17 +1,21 @@
 import streamlit as st
-from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 import plotly.express as px
 from datetime import datetime, timedelta
+import os
 import io
 
-# --- 1. 구글 시트 연결 설정 ---
-conn = st.connection("gsheets", type=GSheetsConnection)
-
+# --- 1. 기본 설정 및 데이터 로드 ---
+DB_FILE = "visitor_log.csv"
 AGE_GROUPS = ["7세 이하", "초등", "중등", "고등", "만 20세~24세", "만 25세 이상"]
 PURPOSES = ["놀이", "휴식", "식사", "친목", "기타"]
 
-# 로그인 및 페이지 세션 상태
+# 데이터 파일 초기화 (로컬 CSV 방식)
+if not os.path.exists(DB_FILE):
+    df_init = pd.DataFrame(columns=["일시", "요일", "월", "성별", "연령대", "이용목록"])
+    df_init.to_csv(DB_FILE, index=False, encoding='utf-8-sig')
+
+# --- [로그인 유지] 새로고침 시 상태 복구 ---
 if 'is_admin' not in st.session_state:
     if st.query_params.get("admin") == "true":
         st.session_state.is_admin = True
@@ -26,7 +30,7 @@ if 'temp_data' not in st.session_state:
 
 st.set_page_config(page_title="라미그라운드 방명록", layout="wide")
 
-# --- 2. 디자인 (180x180 버튼) ---
+# --- 2. 디자인 (180x180 버튼 및 중앙 정렬) ---
 st.markdown("""
     <style>
     div.stButton > button {
@@ -40,14 +44,15 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. 유틸리티 ---
+# --- 3. 유틸리티 함수 ---
 def get_kst_now():
     return datetime.utcnow() + timedelta(hours=9)
 
 def create_excel_report(df):
     output = io.BytesIO()
+    # 요청하신 엑셀 컬럼 순서
     export_cols = ["일시", "연도", "월", "일자", "시간", "요일", "성별", "연령대", "이용목록"]
-    # 엑셀 추출용 데이터 정리
+    
     temp_df = df.copy()
     temp_df['일시'] = pd.to_datetime(temp_df['일시'])
     temp_df['연도'] = temp_df['일시'].dt.year
@@ -84,82 +89,69 @@ with st.sidebar:
 
 # [A] 관리자 페이지
 if st.session_state.is_admin and st.session_state.page == 'admin':
-    st.title("📊 관리자 대시보드 (Google Sheets)")
-    df = conn.read(ttl=0)
-    
-    if not df.empty:
+    st.title("📊 관리자 대시보드")
+    if os.path.exists(DB_FILE):
+        df = pd.read_csv(DB_FILE)
         df['일시'] = pd.to_datetime(df['일시'])
         df['연도'] = df['일시'].dt.year
         df['일자'] = df['일시'].dt.day
         df['시간'] = df['일시'].dt.hour
 
-        with st.expander("🔍 상세 필터 설정", expanded=True):
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                date_range = st.date_input("날짜 범위", [df['일시'].min().date(), df['일시'].max().date()])
-            with col2:
-                selected_gender = st.multiselect("성별", options=["남성", "여성"], default=["남성", "여성"])
-            with col3:
-                selected_ages = st.multiselect("연령대", options=AGE_GROUPS, default=AGE_GROUPS)
+        if not df.empty:
+            with st.expander("🔍 상세 필터 설정", expanded=True):
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    date_range = st.date_input("날짜 범위", [df['일시'].min().date(), df['일시'].max().date()])
+                with col2:
+                    selected_gender = st.multiselect("성별", options=["남성", "여성"], default=["남성", "여성"])
+                with col3:
+                    selected_ages = st.multiselect("연령대", options=AGE_GROUPS, default=AGE_GROUPS)
 
-        mask = (df['일시'].dt.date >= date_range[0]) & (df['일시'].dt.date <= date_range[1]) & \
-               (df['성별'].isin(selected_gender)) & (df['연령대'].isin(selected_ages))
-        f_df = df[mask].copy()
+            mask = (df['일시'].dt.date >= date_range[0]) & (df['일시'].dt.date <= date_range[1]) & \
+                   (df['성별'].isin(selected_gender)) & (df['연령대'].isin(selected_ages))
+            f_df = df[mask].copy()
 
-        st.subheader("🗑️ 데이터 관리 및 삭제")
-        # 편집용 데이터프레임 (인덱스 유지)
-        display_df = f_df[["연도", "월", "일자", "요일", "시간", "성별", "연령대"]]
-        edited_df = st.data_editor(display_df, num_rows="dynamic", use_container_width=True, key="admin_editor")
-        
-        if st.button("💾 변경사항 구글 시트에 저장"):
-            try:
-                # 1. 타입 변환 및 전처리
-                edited_df['연도'] = pd.to_numeric(edited_df['연도']).fillna(0).astype(int)
-                edited_df['월'] = pd.to_numeric(edited_df['월']).fillna(0).astype(int)
-                edited_df['일자'] = pd.to_numeric(edited_df['일자']).fillna(0).astype(int)
-                edited_df['시간'] = pd.to_numeric(edited_df['시간']).fillna(0).astype(int)
-                
-                # 2. '이용목록' 보존 (f_df에서 현재 편집된 행의 개수만큼 가져오거나 기본값 설정)
-                # 삭제가 발생했을 수 있으므로 f_df와 매칭하지 않고 기본값 혹은 기존값 보존
-                # (가장 안전한 방법: 편집된 데이터의 인덱스를 기준으로 원본에서 이용목록 가져오기)
-                edited_df['이용목록'] = "기타"
-                for idx in edited_df.index:
-                    if idx in f_df.index:
-                        edited_df.at[idx, '이용목록'] = f_df.at[idx, '이용목록']
+            # 데이터 관리 및 삭제 (시각화 위)
+            st.subheader("🗑️ 데이터 관리 및 삭제")
+            display_df = f_df[["연도", "월", "일자", "요일", "시간", "성별", "연령대"]]
+            edited_df = st.data_editor(display_df, num_rows="dynamic", use_container_width=True)
+            
+            if st.button("💾 변경사항 저장"):
+                try:
+                    # 데이터 타입 강제 및 일시 재생성
+                    edited_df['연도'] = pd.to_numeric(edited_df['연도']).astype(int)
+                    edited_df['월'] = pd.to_numeric(edited_df['월']).astype(int)
+                    edited_df['일자'] = pd.to_numeric(edited_df['일자']).astype(int)
+                    edited_df['시간'] = pd.to_numeric(edited_df['시간']).astype(int)
+                    
+                    # 기존 이용목록 유지
+                    edited_df['이용목록'] = "기타"
+                    for idx in edited_df.index:
+                        if idx in f_df.index:
+                            edited_df.at[idx, '이용목록'] = f_df.at[idx, '이용목록']
 
-                # 3. '일시' 컬럼 재생성 (에러 발생 구간 수정)
-                def format_date(row):
-                    return f"{row['연도']}-{row['월']:02d}-{row['일자']:02d} {row['시간']:02d}:00:00"
-                
-                edited_df['일시'] = edited_df.apply(format_date, axis=1)
-                
-                # 4. 필터링되지 않은 데이터와 합쳐서 최종본 생성
-                final_save_df = pd.concat([df[~mask], edited_df], ignore_index=True)
-                save_cols = ["일시", "요일", "월", "성별", "연령대", "이용목록"]
-                
-                # 5. 구글 시트 업데이트
-                conn.update(data=final_save_df[save_cols])
-                st.success("구글 시트가 성공적으로 업데이트되었습니다!")
-                st.rerun()
-            except Exception as e:
-                st.error(f"저장 중 오류가 발생했습니다: {e}")
+                    edited_df['일시'] = edited_df.apply(lambda r: f"{r['연도']}-{r['월']:02d}-{r['일자']:02d} {r['시간']:02d}:00:00", axis=1)
+                    
+                    final_save_df = pd.concat([df[~mask], edited_df], ignore_index=True)
+                    save_cols = ["일시", "요일", "월", "성별", "연령대", "이용목록"]
+                    final_save_df[save_cols].to_csv(DB_FILE, index=False, encoding='utf-8-sig')
+                    st.success("변경사항이 저장되었습니다.")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"저장 중 오류가 발생했습니다: {e}")
 
-        st.download_button("📥 필터링 데이터 엑셀 추출", data=create_excel_report(f_df), file_name="라미그라운드_통계.xlsx")
+            st.download_button("📥 필터링 데이터 엑셀 추출", data=create_excel_report(f_df), file_name="라미그라운드_통계.xlsx")
 
-        st.divider()
-        st.subheader("📈 시각화 현황 분석")
-        c1, c2 = st.columns(2)
-        with c1: st.plotly_chart(px.pie(f_df, names='성별', title='성별 비중', hole=0.4), use_container_width=True)
-        with c2: st.plotly_chart(px.pie(f_df, names='이용목록', title='이용 목적 비중', hole=0.4), use_container_width=True)
-        
-        c3, c4 = st.columns(2)
-        with c3:
-            age_chart = f_df['연령대'].value_counts().reindex(AGE_GROUPS).reset_index()
-            st.plotly_chart(px.bar(age_chart, x='연령대', y='count', title='연령대별'), use_container_width=True)
-        with c4:
-            hour_chart = f_df['시간'].value_counts().sort_index().reset_index()
-            st.plotly_chart(px.line(hour_chart, x='시간', y='count', title='시간대별', markers=True), use_container_width=True)
-    else: st.info("시트에 데이터가 없습니다.")
+            st.divider()
+            st.subheader("📈 시각화 현황 분석")
+            c1, c2 = st.columns(2)
+            with c1: st.plotly_chart(px.pie(f_df, names='성별', title='성별 비중', hole=0.4), use_container_width=True)
+            with c2: st.plotly_chart(px.pie(f_df, names='이용목록', title='이용 목적 비중', hole=0.4), use_container_width=True)
+            
+            c3, c4 = st.columns(2)
+            with c3: st.plotly_chart(px.bar(f_df['연령대'].value_counts().reindex(AGE_GROUPS).reset_index(), x='연령대', y='count', title='연령대별'), use_container_width=True)
+            with c4: st.plotly_chart(px.line(f_df['시간'].value_counts().sort_index().reset_index(), x='시간', y='count', title='시간대별 패턴', markers=True), use_container_width=True)
+        else: st.info("데이터가 없습니다.")
 
 # [B] 사용자 페이지 (성별)
 elif st.session_state.page == 'gender':
@@ -186,17 +178,17 @@ elif st.session_state.page == 'purpose':
         with cols[i % 3]:
             if st.button(purp):
                 now = get_kst_now()
-                new_row = pd.DataFrame([{
+                new_row = {
                     "일시": now.strftime("%Y-%m-%d %H:%M:%S"),
                     "요일": now.strftime("%A"),
                     "월": now.month,
                     "성별": st.session_state.temp_data['gender'],
                     "연령대": st.session_state.temp_data['age'],
                     "이용목록": purp
-                }])
-                existing_df = conn.read(ttl=0)
-                updated_df = pd.concat([existing_df, new_row], ignore_index=True)
-                conn.update(data=updated_df)
+                }
+                df = pd.read_csv(DB_FILE)
+                df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+                df.to_csv(DB_FILE, index=False, encoding='utf-8-sig')
                 st.session_state.page = 'complete'; st.rerun()
 
 # [E] 사용자 페이지 (완료)

@@ -29,13 +29,26 @@ if 'temp_data' not in st.session_state:
 
 st.set_page_config(page_title="라미그라운드 방명록", layout="wide")
 
-# --- 2. 디자인 ---
+# --- 2. 디자인 (메인 버튼 및 뒤로가기 버튼 스타일) ---
 st.markdown("""
     <style>
-    div.stButton > button {
+    /* 메인 선택 버튼 (180x180) */
+    div.stButton > button:not(.back-btn) {
         width: 180px !important; height: 180px !important;
         font-size: 20px !important; font-weight: bold !important;
         border-radius: 20px !important; margin: 10px auto; display: block;
+    }
+    /* 뒤로 가기 버튼 전용 스타일 (180x60, 노란색) */
+    div.back-container > div.stButton > button {
+        width: 180px !important; height: 60px !important;
+        background-color: #FFD700 !important; /* 노란색 */
+        color: #333 !important;
+        font-size: 18px !important;
+        font-weight: bold !important;
+        border-radius: 10px !important;
+        border: none !important;
+        margin: 40px auto 0px auto !important; /* 위쪽 여백 */
+        display: block;
     }
     .center-text { text-align: center; padding: 20px; }
     .welcome-title { font-size: 42px; font-weight: 800; margin-bottom: 10px; }
@@ -112,7 +125,6 @@ if st.session_state.is_admin and st.session_state.page == 'admin':
         
         if st.button("💾 변경사항 저장"):
             try:
-                # 데이터 변환 및 인덱스 정리
                 edited_df['연도'] = pd.to_numeric(edited_df['연도'], errors='coerce').fillna(0).astype(int)
                 edited_df['월'] = pd.to_numeric(edited_df['월'], errors='coerce').fillna(0).astype(int)
                 edited_df['일자'] = pd.to_numeric(edited_df['일자'], errors='coerce').fillna(0).astype(int)
@@ -123,10 +135,8 @@ if st.session_state.is_admin and st.session_state.page == 'admin':
                 for idx, row in edited_df.iterrows():
                     ts = f"{row['연도']}-{row['월']:02d}-{row['일자']:02d} {row['시간']:02d}:00:00"
                     new_timestamps.append(ts)
-                    if idx in f_df.index:
-                        new_purposes.append(f_df.at[idx, '이용목록'])
-                    else:
-                        new_purposes.append("기타")
+                    if idx in f_df.index: new_purposes.append(f_df.at[idx, '이용목록'])
+                    else: new_purposes.append("기타")
                 
                 edited_df['일시'] = new_timestamps
                 edited_df['이용목록'] = new_purposes
@@ -134,11 +144,9 @@ if st.session_state.is_admin and st.session_state.page == 'admin':
                 final_save_df = pd.concat([df[~mask], edited_df], ignore_index=True)
                 save_cols = ["일시", "요일", "월", "성별", "연령대", "이용목록"]
                 final_save_df[save_cols].to_csv(DB_FILE, index=False, encoding='utf-8-sig')
-                
                 st.success("데이터가 안전하게 저장되었습니다.")
                 st.rerun()
-            except Exception as e:
-                st.error(f"저장 중 오류가 발생했습니다: {e}")
+            except Exception as e: st.error(f"저장 중 오류가 발생했습니다: {e}")
 
         st.download_button("📥 필터링 데이터 엑셀 추출", data=create_excel_report(f_df), file_name="라미그라운드_통계.xlsx")
 
@@ -149,7 +157,7 @@ if st.session_state.is_admin and st.session_state.page == 'admin':
         with c2: st.plotly_chart(px.pie(f_df, names='이용목록', title='이용 목적 비중', hole=0.4), use_container_width=True)
     else: st.info("데이터가 없습니다.")
 
-# [B] 사용자 페이지 (성별)
+# [B] 사용자 페이지 1: 성별 선택
 elif st.session_state.page == 'gender':
     st.markdown("<div class='center-text'><div class='welcome-title'>라미그라운드 방문을 환영합니다! 😊</div><div class='sub-title'>성별을 선택해주세요.</div></div>", unsafe_allow_html=True)
     _, c2, c3, _ = st.columns([1, 1, 1, 1])
@@ -158,15 +166,21 @@ elif st.session_state.page == 'gender':
     with c3: 
         if st.button("여성"): st.session_state.temp_data['gender'] = "여성"; st.session_state.page = 'age'; st.rerun()
 
-# [C] 사용자 페이지 (연령대)
+# [C] 사용자 페이지 2: 연령대 선택
 elif st.session_state.page == 'age':
     st.markdown("<div class='center-text'><div class='sub-title'>연령대를 선택해주세요.</div></div>", unsafe_allow_html=True)
     cols = st.columns(3)
     for i, age in enumerate(AGE_GROUPS):
         with cols[i % 3]:
             if st.button(age): st.session_state.temp_data['age'] = age; st.session_state.page = 'purpose'; st.rerun()
+    
+    # 뒤로 가기 버튼 (중앙 배치)
+    st.markdown("<div class='back-container'>", unsafe_allow_html=True)
+    if st.button("뒤로 가기"):
+        st.session_state.page = 'gender'; st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
 
-# [D] 사용자 페이지 (이용 목적)
+# [D] 사용자 페이지 3: 이용 목적 선택
 elif st.session_state.page == 'purpose':
     st.markdown("<div class='center-text'><div class='sub-title'>오늘 이용 목적은 무엇인가요?</div></div>", unsafe_allow_html=True)
     cols = st.columns(3)
@@ -174,24 +188,22 @@ elif st.session_state.page == 'purpose':
         with cols[i % 3]:
             if st.button(purp):
                 now = get_kst_now()
-                new_row = {
-                    "일시": now.strftime("%Y-%m-%d %H:%M:%S"),
-                    "요일": now.strftime("%A"),
-                    "월": now.month,
-                    "성별": st.session_state.temp_data['gender'],
-                    "연령대": st.session_state.temp_data['age'],
-                    "이용목록": purp
-                }
+                new_row = {"일시": now.strftime("%Y-%m-%d %H:%M:%S"), "요일": now.strftime("%A"), "월": now.month, "성별": st.session_state.temp_data['gender'], "연령대": st.session_state.temp_data['age'], "이용목록": purp}
                 df = pd.read_csv(DB_FILE)
                 df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
                 df.to_csv(DB_FILE, index=False, encoding='utf-8-sig')
                 st.session_state.page = 'complete'; st.rerun()
+    
+    # 뒤로 가기 버튼 (중앙 배치)
+    st.markdown("<div class='back-container'>", unsafe_allow_html=True)
+    if st.button("뒤로 가기"):
+        st.session_state.page = 'age'; st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
 
-# [E] 사용자 페이지 (완료) - [시간 단축 적용]
+# [E] 사용자 페이지 4: 완료
 elif st.session_state.page == 'complete':
     st.balloons()
     st.markdown("<div class='center-text' style='margin-top:100px;'><div class='welcome-title'>✅ 접수 완료!</div><div class='sub-title'>감사합니다. 즐거운 시간 되세요!</div></div>", unsafe_allow_html=True)
     import time
-    # 대기 시간을 3초에서 1.5초로 단축
     time.sleep(1.5)
     st.session_state.page = 'gender'; st.rerun()

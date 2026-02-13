@@ -177,4 +177,37 @@ elif st.session_state.page == 'age':
     st.markdown("<div class='back-spacer'></div>", unsafe_allow_html=True)
     _, back_col, _ = st.columns([1, 0.6, 1])
     with back_col:
-        st.markdown("<div class='
+        st.markdown("<div class='yellow-btn'>", unsafe_allow_html=True)
+        if st.button("뒤로 가기"): st.session_state.page = 'gender'; st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+
+# [D] 사용자 페이지 3: 이용 목적 선택
+elif st.session_state.page == 'purpose':
+    st.markdown("<div class='center-text'><div class='sub-title'>오늘 이용 목적은 무엇인가요?</div></div>", unsafe_allow_html=True)
+    _, center_col, _ = st.columns([1, 6, 1])
+    with center_col:
+        c1, c2, c3 = st.columns(3)
+        for i, purp in enumerate(PURPOSES):
+            target_col = [c1, c2, c3][i % 3]
+            if target_col.button(purp):
+                now = get_kst_now()
+                new_row = {"일시": now.strftime("%Y-%m-%d %H:%M:%S"), "요일": now.strftime("%A"), "월": now.month, "성별": st.session_state.temp_data['gender'], "연령대": st.session_state.temp_data['age'], "이용목록": purp}
+                df = pd.read_csv(DB_FILE)
+                df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+                df.to_csv(DB_FILE, index=False, encoding='utf-8-sig')
+                st.session_state.page = 'complete'; st.rerun()
+
+    st.markdown("<div class='back-spacer'></div>", unsafe_allow_html=True)
+    _, back_col, _ = st.columns([1, 0.6, 1])
+    with back_col:
+        st.markdown("<div class='yellow-btn'>", unsafe_allow_html=True)
+        if st.button("뒤로 가기"): st.session_state.page = 'age'; st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+
+# [E] 사용자 페이지 4: 완료
+elif st.session_state.page == 'complete':
+    st.balloons()
+    st.markdown("<div class='center-text' style='margin-top:100px;'><div class='welcome-title'>✅ 접수 완료!</div><div class='sub-title'>감사합니다. 즐거운 시간 되세요!</div></div>", unsafe_allow_html=True)
+    import time
+    time.sleep(1.5)
+    st.session_state.page = 'gender'; st.rerun()

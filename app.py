@@ -32,12 +32,12 @@ st.set_page_config(page_title="라미그라운드 방명록", layout="wide")
 # --- 2. 디자인 (CSS) ---
 st.markdown("""
     <style>
-    /* 1. 버튼 사이 가로 간격 20px 고정 */
+    /* 1. 버튼 사이 가로 간격 20px */
     [data-testid="stHorizontalBlock"] {
         gap: 20px !important;
     }
 
-    /* 2. 메인 선택 버튼 스타일 (180x180) */
+    /* 2. 메인 선택 버튼 (180x180) */
     .main-btn-container div.stButton > button {
         width: 180px !important; 
         height: 180px !important;
@@ -49,9 +49,9 @@ st.markdown("""
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
     
-    /* 3. 뒤로 가기 버튼 스타일 (180x60, 노란색) */
+    /* 3. 뒤로 가기 버튼 (180x60, 노란색) */
     .yellow-btn-container div.stButton > button {
-        background-color: #FFD700 !important; 
+        background-color: #FFD700 !important;
         color: #333 !important;
         height: 60px !important;
         width: 180px !important;
@@ -63,7 +63,7 @@ st.markdown("""
         display: block;
     }
     
-    /* 4. 선택 버튼과 뒤로 가기 버튼 사이의 간격 (100px) */
+    /* 4. 뒤로 가기 버튼 상단 여백 (100px) */
     .back-spacer {
         margin-top: 100px;
     }
@@ -144,11 +144,13 @@ if st.session_state.is_admin and st.session_state.page == 'admin':
                 
                 edited_df['일시'] = new_ts
                 edited_df['이용목록'] = new_purp
+                
                 save_df = edited_df[["일시", "요일", "월", "성별", "연령대", "이용목록"]]
                 save_df.to_csv(DB_FILE, index=False, encoding='utf-8-sig')
                 st.success("데이터가 안전하게 저장되었습니다.")
                 st.rerun()
-            except Exception as e: st.error(f"저장 오류: {e}")
+            except Exception as e:
+                st.error(f"저장 오류: {e}")
 
         st.download_button("📥 엑셀 추출", data=create_excel_report(df), file_name="라미그라운드_현황.xlsx")
     else: st.info("데이터가 없습니다.")
@@ -208,11 +210,10 @@ elif st.session_state.page == 'purpose':
         if st.button("뒤로 가기", key="back_to_age"): st.session_state.page = 'age'; st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
-# [E] 사용자 페이지 4: 완료
+# [E] 사용자 페이지 4: 완료 (대기 시간 2초 적용)
 elif st.session_state.page == 'complete':
     st.balloons()
     st.markdown("<div class='center-text' style='margin-top:100px;'><div class='welcome-title'>✅ 접수 완료!</div><div class='sub-title'>감사합니다. 즐거운 시간 되세요!</div></div>", unsafe_allow_html=True)
     import time
-    # 요청하신 대로 대기 시간을 2초로 수정
     time.sleep(2.0)
     st.session_state.page = 'gender'; st.rerun()

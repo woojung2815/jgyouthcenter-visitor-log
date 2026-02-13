@@ -37,7 +37,6 @@ st.markdown(
     """
     <style>
     [data-testid="stHorizontalBlock"] { gap: 20px !important; }
-
     .center-text { text-align: center; padding: 20px; }
     .welcome-title { font-size: 48px; font-weight: 900; margin-bottom: 10px; }
     .sub-title { font-size: 26px; color: #444; margin-bottom: 50px; font-weight: 600; }
@@ -240,29 +239,6 @@ def create_excel_report(df: pd.DataFrame, meta: Optional[Dict[str, Any]] = None)
 
     return output.getvalue()
 
-def compute_period_dates(option: str, df_min: date, df_max: date) -> tuple[date, date]:
-    """
-    option: "최근 1주", "최근 1달", "기간 설정"
-    """
-    today_kst = get_kst_now().date()
-    if option == "최근 1주":
-        start = today_kst - timedelta(days=6)
-        end = today_kst
-        # 데이터 범위 밖으로 나가지 않게
-        start = max(start, df_min)
-        end = min(end, df_max)
-        return start, end
-
-    if option == "최근 1달":
-        start = today_kst - timedelta(days=29)
-        end = today_kst
-        start = max(start, df_min)
-        end = min(end, df_max)
-        return start, end
-
-    # 기간 설정: 기본값은 전체(필터 결과 기준)
-    return df_min, df_max
-
 # --- 4. 사이드바(관리자 로그인/로그아웃) ---
 with st.sidebar:
     st.title("🛡️ 관리자 메뉴")
@@ -366,6 +342,7 @@ if st.session_state.is_admin and st.session_state.page == "admin":
 
             temp = f_df.copy()
             temp["일시"] = pd.to_datetime(temp["일시"], errors="coerce")
+            temp = temp.dropna(subset=["일시"])
             temp["날짜"] = temp["일시"].dt.date
             temp["월"] = temp["일시"].dt.to_period("M").astype(str)
 
@@ -410,7 +387,6 @@ if st.session_state.is_admin and st.session_state.page == "admin":
                     y = int(row["ISO연도"])
                     w = int(row["ISO주차"])
                     s, e = iso_week_date_range(y, w)
-                    # 요청 형식: (2026-00-00~2026-00-00)
                     return f"{y}-W{w:02d} ({s.isoformat()}~{e.isoformat()})"
 
                 weekly_raw["주(기간)"] = weekly_raw.apply(make_week_label, axis=1)
@@ -420,42 +396,90 @@ if st.session_state.is_admin and st.session_state.page == "admin":
             st.divider()
 
             # ---------------------------
-            # ✅ 일자별 방문 추이: 최근 1주/최근 1달/기간 설정
+            # ✅ 일자별 방문 추이 (최근 1주 / 최근 1달 / 기간 설정)
+            #    - x축: "몇월 몇일"
+            #    - 데이터 많으면 자동 간격: 5일 / 1달
             # ---------------------------
             st.subheader("📅 일자별 방문 추이")
 
-            # (필터 결과 f_df 기준으로 범위 계산)
-            f_min = f_df["일시"].min().date()
-            f_max = f_df["일시"].max().date()
+            f_df2 = f_df.copy()
+            f_df2["일시"] = pd.to_datetime(f_df2["일시"], errors="coerce")
+            f_df2 = f_df2.dropna(subset=["일시"])
 
-            period_option = st.radio(
-                "조회 기간",
-                options=["최근 1주", "최근 1달", "기간 설정"],
-                horizontal=True,
-            )
+            if f_df2.empty:
+                st.info("그래프를 그릴 데이터가 없습니다(일시 파싱 실패 또는 데이터 없음).")
+            else:
+                f_min = f_df2["일시"].min().date()
+                f_max = f_df2["일시"].max().date()
 
-            if period_option == "기간 설정":
-                chart_range = st.date_input(
-                    "그래프 기간(필터 결과 범위 내에서 선택)",
-                    [f_min, f_max],
-                    min_value=f_min,
-                    max_value=f_max,
+                period_option = st.radio(
+                    "조회 기간",
+                    options=["최근 1주", "최근 1달", "기간 설정"],
+                    horizontal=True,
+                    key="trend_period",
                 )
-                chart_start, chart_end = chart_range[0], chart_range[1]
-            else:
-                chart_start, chart_end = compute_period_dates(period_option, f_min, f_max)
 
-            chart_df = f_df[(f_df["일시"].dt.date >= chart_start) & (f_df["일시"].dt.date <= chart_end)].copy()
+                if period_option == "기간 설정":
+                    chart_range = st.date_input(
+                        "그래프 기간(필터 결과 범위 내에서 선택)",
+                        value=[f_min, f_max],
+                        min_value=f_min,
+                        max_value=f_max,
+                        key="trend_range",
+                    )
+                    if isinstance(chart_range, (list, tuple)) and len(chart_range) == 2:
+                        chart_start, chart_end = chart_range[0], chart_range[1]
+                    else:
+                        chart_start, chart_end = f_min, f_max
+                else:
+                    today_kst = get_kst_now().date()
+                    if period_option == "최근 1주":
+                        chart_start = max(today_kst - timedelta(days=6), f_min)
+                        chart_end = min(today_kst, f_max)
+                    else:  # 최근 1달
+                        chart_start = max(today_kst - timedelta(days=29), f_min)
+                        chart_end = min(today_kst, f_max)
 
-            if chart_df.empty:
-                st.info("선택한 기간에 해당하는 데이터가 없습니다.")
-            else:
-                daily_counts = chart_df["일시"].dt.floor("D").value_counts().sort_index().reset_index()
-                daily_counts.columns = ["날짜", "방문자 수"]
+                chart_df = f_df2[(f_df2["일시"].dt.date >= chart_start) & (f_df2["일시"].dt.date <= chart_end)].copy()
 
-                fig_daily = px.line(daily_counts, x="날짜", y="방문자 수", markers=True)
-                fig_daily.update_xaxes(tickformat="%m-%d", dtick="D1", title_text="월-일")
-                st.plotly_chart(fig_daily, use_container_width=True)
+                if chart_df.empty:
+                    st.info("선택한 기간에 해당하는 데이터가 없습니다.")
+                else:
+                    daily_counts = (
+                        chart_df.assign(날짜=chart_df["일시"].dt.floor("D"))
+                        .groupby("날짜")
+                        .size()
+                        .reset_index(name="방문자 수")
+                        .sort_values("날짜")
+                    )
+
+                    fig_daily = px.line(
+                        daily_counts,
+                        x="날짜",
+                        y="방문자 수",
+                        markers=True,
+                        hover_data={"날짜": "|%Y-%m-%d"},
+                    )
+
+                    # 기본: "몇월 몇일"
+                    fig_daily.update_xaxes(
+                        tickformat="%-m %-d",
+                        title_text="날짜",
+                    )
+
+                    # 기간 길이에 따라 표시 간격 자동 조정
+                    total_days = (chart_end - chart_start).days + 1
+                    if total_days >= 120:
+                        # 4개월 이상이면 월 단위(1달 간격)
+                        fig_daily.update_xaxes(dtick="M1", tickformat="%Y년 %m월")
+                    elif total_days >= 35:
+                        # 5주 이상이면 5일 간격
+                        fig_daily.update_xaxes(dtick="D5", tickformat="%m월 %d일")
+                    else:
+                        # 짧으면 매일
+                        fig_daily.update_xaxes(dtick="D1", tickformat="%m월 %d일")
+
+                    st.plotly_chart(fig_daily, use_container_width=True)
 
             # ---------------------------
             # ✅ 기본 파이 차트

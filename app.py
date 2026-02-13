@@ -148,4 +148,74 @@ if st.session_state.is_admin and st.session_state.page == 'admin':
                 
                 save_df = edited_df[["일시", "요일", "월", "성별", "연령대", "이용목록"]]
                 save_df.to_csv(DB_FILE, index=False, encoding='utf-8-sig')
-                st.success("데이터가 안전하게 저장
+                st.success("데이터가 안전하게 저장되었습니다.")
+                st.rerun()
+            except Exception as e:
+                st.error(f"저장 오류: {e}")
+
+        st.download_button("📥 엑셀 추출", data=create_excel_report(df), file_name="라미그라운드_현황.xlsx")
+    else: st.info("데이터가 없습니다.")
+
+# [B] 사용자 페이지 1: 성별 선택
+elif st.session_state.page == 'gender':
+    st.markdown("<div class='center-text'><div class='welcome-title'>라미그라운드 방문을 환영합니다! 😊</div><div class='sub-title'>성별을 선택해주세요.</div></div>", unsafe_allow_html=True)
+    _, center_col, _ = st.columns([1, 4, 1])
+    with center_col:
+        st.markdown("<div class='main-btn-container'>", unsafe_allow_html=True)
+        c1, c2 = st.columns(2)
+        if c1.button("남성"): st.session_state.temp_data['gender'] = "남성"; st.session_state.page = 'age'; st.rerun()
+        if c2.button("여성"): st.session_state.temp_data['gender'] = "여성"; st.session_state.page = 'age'; st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+
+# [C] 사용자 페이지 2: 연령대 선택
+elif st.session_state.page == 'age':
+    st.markdown("<div class='center-text'><div class='sub-title'>연령대를 선택해주세요.</div></div>", unsafe_allow_html=True)
+    _, center_col, _ = st.columns([1, 6, 1])
+    with center_col:
+        st.markdown("<div class='main-btn-container'>", unsafe_allow_html=True)
+        c1, c2, c3 = st.columns(3)
+        for i, age in enumerate(AGE_GROUPS):
+            target_col = [c1, c2, c3][i % 3]
+            if target_col.button(age): st.session_state.temp_data['age'] = age; st.session_state.page = 'purpose'; st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+    
+    # 뒤로 가기 (노란색, 중앙 정렬, 100px 간격)
+    st.markdown("<div class='back-spacer'></div>", unsafe_allow_html=True)
+    _, back_col, _ = st.columns([1, 0.6, 1])
+    with back_col:
+        st.markdown("<div class='yellow-btn-container'>", unsafe_allow_html=True)
+        if st.button("뒤로 가기", key="back_to_gender"): st.session_state.page = 'gender'; st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+
+# [D] 사용자 페이지 3: 이용 목적 선택
+elif st.session_state.page == 'purpose':
+    st.markdown("<div class='center-text'><div class='sub-title'>오늘 이용 목적은 무엇인가요?</div></div>", unsafe_allow_html=True)
+    _, center_col, _ = st.columns([1, 6, 1])
+    with center_col:
+        st.markdown("<div class='main-btn-container'>", unsafe_allow_html=True)
+        c1, c2, c3 = st.columns(3)
+        for i, purp in enumerate(PURPOSES):
+            target_col = [c1, c2, c3][i % 3]
+            if target_col.button(purp):
+                now = get_kst_now()
+                new_row = {"일시": now.strftime("%Y-%m-%d %H:%M:%S"), "요일": now.strftime("%A"), "월": now.month, "성별": st.session_state.temp_data['gender'], "연령대": st.session_state.temp_data['age'], "이용목록": purp}
+                df = pd.read_csv(DB_FILE)
+                df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+                df.to_csv(DB_FILE, index=False, encoding='utf-8-sig')
+                st.session_state.page = 'complete'; st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # 뒤로 가기 (노란색, 중앙 정렬, 100px 간격)
+    st.markdown("<div class='back-spacer'></div>", unsafe_allow_html=True)
+    _, back_col, _ = st.columns([1, 0.6, 1])
+    with back_col:
+        st.markdown("<div class='yellow-btn-container'>", unsafe_allow_html=True)
+        if st.button("뒤로 가기", key="back_to_age"): st.session_state.page = 'age'; st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+
+# [E] 사용자 페이지 4: 완료 (뒤로 가기 버튼 없음, 2초 대기)
+elif st.session_state.page == 'complete':
+    st.balloons()
+    st.markdown("<div class='center-text' style='margin-top:100px;'><div class='welcome-title'>✅ 접수 완료!</div><div class='sub-title'>감사합니다. 즐거운 시간 되세요!</div></div>", unsafe_allow_html=True)
+    time.sleep(2.0)
+    st.session_state.page = 'gender'; st.rerun()

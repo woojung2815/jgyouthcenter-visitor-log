@@ -29,66 +29,52 @@ if 'temp_data' not in st.session_state:
 
 st.set_page_config(page_title="라미그라운드 방명록", layout="wide")
 
-# --- 2. 디자인 (초강력 CSS: 절대 변하지 않는 사이즈 고정) ---
-st.markdown("""
-    <style>
-    /* 1. 기본 간격 */
-    [data-testid="stHorizontalBlock"] {
-        gap: 20px !important;
-    }
+# --- 2. 디자인 (사용자 페이지용 대왕 버튼 CSS) ---
+if st.session_state.page != 'admin':
+    st.markdown("""
+        <style>
+        /* 기본 간격 */
+        [data-testid="stHorizontalBlock"] { gap: 20px !important; }
 
-    /* 2. 메인 선택 버튼 (180x180) - 모든 상태에 대해 강제 고정 */
-    .main-btn-container div[data-testid="stButton"] button {
-        min-width: 180px !important;
-        max-width: 180px !important;
-        min-height: 180px !important;
-        max-height: 180px !important;
-        width: 180px !important;
-        height: 180px !important;
-        font-size: 24px !important;
-        font-weight: 800 !important;
-        border-radius: 25px !important;
-        margin: 0 auto !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        box-shadow: 0 6px 10px rgba(0,0,0,0.15) !important;
-        white-space: normal !important;
-        word-break: keep-all !important;
-    }
-    
-    /* 3. 뒤로 가기 버튼 (180x60, 노란색) - 초강력 고정 */
-    .yellow-btn-container div[data-testid="stButton"] button {
-        background-color: #FFD700 !important;
-        color: #000000 !important;
-        min-width: 180px !important;
-        max-width: 180px !important;
-        min-height: 60px !important;
-        max-height: 60px !important;
-        width: 180px !important;
-        height: 60px !important;
-        border: 2px solid #CCAC00 !important;
-        font-size: 20px !important;
-        font-weight: 900 !important;
-        border-radius: 12px !important;
-        margin: 0 auto !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-    }
-    
-    /* 4. 세로 간격 100px */
-    .back-spacer {
-        margin-top: 100px;
-        display: block;
-        height: 1px;
-    }
-    
-    .center-text { text-align: center; padding: 20px; }
-    .welcome-title { font-size: 48px; font-weight: 900; margin-bottom: 10px; color: #1E1E1E; }
-    .sub-title { font-size: 26px; color: #444; margin-bottom: 60px; font-weight: 600; }
-    </style>
-    """, unsafe_allow_html=True)
+        /* 메인 선택 버튼 (180x180) - 모든 수단 동원 */
+        div[data-testid="stButton"] button:not(.back-btn) {
+            width: 180px !important;
+            height: 180px !important;
+            min-width: 180px !important;
+            min-height: 180px !important;
+            flex-shrink: 0 !important; /* 태블릿에서 줄어드는 것 방지 */
+            font-size: 24px !important;
+            font-weight: 800 !important;
+            border-radius: 25px !important;
+            box-shadow: 0 6px 12px rgba(0,0,0,0.2) !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            padding: 0 !important;
+        }
+
+        /* 뒤로 가기 버튼 (180x60, 노란색) */
+        /* 특정 클래스나 구조를 활용해 뒤로가기 버튼만 타겟팅 */
+        .yellow-btn-area div[data-testid="stButton"] button {
+            background-color: #FFD700 !important;
+            color: #000 !important;
+            width: 180px !important;
+            height: 60px !important;
+            min-width: 180px !important;
+            min-height: 60px !important;
+            flex-shrink: 0 !important;
+            border: none !important;
+            font-size: 20px !important;
+            font-weight: 900 !important;
+            border-radius: 12px !important;
+            margin-top: 100px !important; /* 상단과의 간격 100px */
+        }
+
+        .center-text { text-align: center; padding: 20px; }
+        .welcome-title { font-size: 48px; font-weight: 900; margin-bottom: 10px; }
+        .sub-title { font-size: 26px; color: #444; margin-bottom: 50px; font-weight: 600; }
+        </style>
+        """, unsafe_allow_html=True)
 
 # --- 3. 유틸리티 함수 ---
 def get_kst_now():
@@ -168,7 +154,7 @@ if st.session_state.is_admin and st.session_state.page == 'admin':
                 except Exception as e: st.error(f"오류: {e}")
         
         with excel_btn_col:
-            st.download_button("📥 필터링 데이터 엑셀 추출", data=create_excel_report(f_df), file_name="현황.xlsx", use_container_width=True)
+            st.download_button("📥 엑셀 추출", data=create_excel_report(f_df), file_name="현황.xlsx", use_container_width=True)
 
         st.divider()
         if not f_df.empty:
@@ -182,29 +168,26 @@ elif st.session_state.page == 'gender':
     st.markdown("<div class='center-text'><div class='welcome-title'>라미그라운드 방문을 환영합니다! 😊</div><div class='sub-title'>성별을 선택해주세요.</div></div>", unsafe_allow_html=True)
     _, center_col, _ = st.columns([1, 4, 1])
     with center_col:
-        st.markdown("<div class='main-btn-container'>", unsafe_allow_html=True)
         c1, c2 = st.columns(2)
         if c1.button("남성"): st.session_state.temp_data['gender'] = "남성"; st.session_state.page = 'age'; st.rerun()
         if c2.button("여성"): st.session_state.temp_data['gender'] = "여성"; st.session_state.page = 'age'; st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
 
 # [C] 사용자 페이지: 연령대
 elif st.session_state.page == 'age':
     st.markdown("<div class='center-text'><div class='sub-title'>연령대를 선택해주세요.</div></div>", unsafe_allow_html=True)
     _, center_col, _ = st.columns([1, 6, 1])
     with center_col:
-        st.markdown("<div class='main-btn-container'>", unsafe_allow_html=True)
         c1, c2, c3 = st.columns(3)
         for i, age in enumerate(AGE_GROUPS):
             if [c1, c2, c3][i % 3].button(age):
                 st.session_state.temp_data['age'] = age; st.session_state.page = 'purpose'; st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
     
-    st.markdown("<div class='back-spacer'></div>", unsafe_allow_html=True)
-    _, back_col, _ = st.columns([1, 0.6, 1])
+    # 뒤로 가기 섹션 (중앙 정렬 및 강제 스타일 적용 영역)
+    _, back_col, _ = st.columns([1, 1, 1])
     with back_col:
-        st.markdown("<div class='yellow-btn-container'>", unsafe_allow_html=True)
-        if st.button("뒤로 가기", key="back_to_gender"): st.session_state.page = 'gender'; st.rerun()
+        st.markdown("<div class='yellow-btn-area'>", unsafe_allow_html=True)
+        if st.button("뒤로 가기", key="back_to_gender"):
+            st.session_state.page = 'gender'; st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
 # [D] 사용자 페이지: 이용 목적
@@ -212,7 +195,6 @@ elif st.session_state.page == 'purpose':
     st.markdown("<div class='center-text'><div class='sub-title'>오늘 이용 목적은 무엇인가요?</div></div>", unsafe_allow_html=True)
     _, center_col, _ = st.columns([1, 6, 1])
     with center_col:
-        st.markdown("<div class='main-btn-container'>", unsafe_allow_html=True)
         c1, c2, c3 = st.columns(3)
         for i, purp in enumerate(PURPOSES):
             if [c1, c2, c3][i % 3].button(purp):
@@ -222,13 +204,13 @@ elif st.session_state.page == 'purpose':
                 df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
                 df.to_csv(DB_FILE, index=False, encoding='utf-8-sig')
                 st.session_state.page = 'complete'; st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
 
-    st.markdown("<div class='back-spacer'></div>", unsafe_allow_html=True)
-    _, back_col, _ = st.columns([1, 0.6, 1])
+    # 뒤로 가기 섹션 (중앙 정렬 및 강제 스타일 적용 영역)
+    _, back_col, _ = st.columns([1, 1, 1])
     with back_col:
-        st.markdown("<div class='yellow-btn-container'>", unsafe_allow_html=True)
-        if st.button("뒤로 가기", key="back_to_age"): st.session_state.page = 'age'; st.rerun()
+        st.markdown("<div class='yellow-btn-area'>", unsafe_allow_html=True)
+        if st.button("뒤로 가기", key="back_to_age"):
+            st.session_state.page = 'age'; st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
 # [E] 사용자 페이지: 완료

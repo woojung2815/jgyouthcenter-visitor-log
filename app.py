@@ -29,13 +29,15 @@ if 'temp_data' not in st.session_state:
 
 st.set_page_config(page_title="라미그라운드 방명록", layout="wide")
 
-# --- 2. 디자인 (CSS: 태블릿 최적화 강제 무시 및 사이즈 고정) ---
+# --- 2. 디자인 (CSS: 모든 수단을 동원한 사이즈 박제) ---
 st.markdown("""
     <style>
-    /* 1. 레이아웃 간격 고정 */
-    [data-testid="stHorizontalBlock"] { gap: 20px !important; }
+    /* 전체 화면 가로 간격 20px 고정 */
+    [data-testid="stHorizontalBlock"] {
+        gap: 20px !important;
+    }
 
-    /* 2. 메인 선택 버튼 (180x180) - 모든 수단 동원하여 강제 고정 */
+    /* 1. 사용자 페이지: 메인 버튼 (180x180) 강제 박제 */
     .main-btn-container [data-testid="stButton"] button {
         width: 180px !important;
         height: 180px !important;
@@ -46,15 +48,12 @@ st.markdown("""
         font-size: 24px !important;
         font-weight: 800 !important;
         border-radius: 25px !important;
-        margin: 0 auto !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        flex-shrink: 0 !important; /* 태블릿 압축 방지 */
+        display: inline-block !important;
         box-shadow: 0 6px 12px rgba(0,0,0,0.15) !important;
+        flex-shrink: 0 !important;
     }
 
-    /* 3. 뒤로 가기 버튼 (180x60, 노란색) - 초강력 고정 */
+    /* 2. 사용자 페이지: 뒤로 가기 버튼 (180x60, 노란색) 강제 박제 */
     .yellow-btn-area [data-testid="stButton"] button {
         background-color: #FFD700 !important;
         color: #000000 !important;
@@ -68,17 +67,17 @@ st.markdown("""
         font-weight: 900 !important;
         border-radius: 12px !important;
         border: 2px solid #CCAC00 !important;
-        margin: 100px auto 0 !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
+        margin-top: 100px !important; /* 상단 여백 100px */
+        display: inline-block !important;
         flex-shrink: 0 !important;
     }
 
-    /* 4. 관리자 페이지 버튼 스타일 (직사각형) */
+    /* 3. 관리자 페이지 버튼: 직사각형으로 통일 (사용자 버튼의 영향을 받지 않도록 격리) */
     .admin-btn-area [data-testid="stButton"] button {
         height: 50px !important;
         width: 100% !important;
+        min-width: 0px !important;
+        min-height: 0px !important;
         font-size: 16px !important;
         font-weight: 600 !important;
         border-radius: 8px !important;
@@ -132,12 +131,12 @@ with st.sidebar:
 
 # [A] 관리자 페이지
 if st.session_state.is_admin and st.session_state.page == 'admin':
-    st.title("📊 데이터 통합 관리 대시보드")
+    st.title("📊 데이터 통합 분석 센터")
     df = pd.read_csv(DB_FILE)
     df['일시'] = pd.to_datetime(df['일시'])
     
     if not df.empty:
-        # 필터링 섹션
+        # 1. 상세 필터링 (날짜, 성별, 연령, 이용목적)
         with st.expander("🔍 상세 필터링 설정", expanded=True):
             f1, f2 = st.columns(2)
             with f1: date_range = st.date_input("날짜 범위", [df['일시'].min().date(), df['일시'].max().date()])
@@ -151,25 +150,27 @@ if st.session_state.is_admin and st.session_state.page == 'admin':
                (df['이용목록'].isin(selected_purposes))
         f_df = df[mask].copy()
 
+        # 2. 데이터 편집/삭제 테이블
         st.subheader("🗑️ 데이터 편집 및 삭제")
         edited_df = st.data_editor(f_df, num_rows="dynamic", use_container_width=True, key="data_editor")
 
-        # 관리자 버튼 영역 (동일한 디자인 적용)
+        # 3. 버튼 영역 (최종 저장 & 엑셀 추출 위치 조정 및 디자인 통일)
         st.markdown("<div class='admin-btn-area'>", unsafe_allow_html=True)
-        c1, c2 = st.columns(2)
-        with c1:
+        save_col, excel_col = st.columns(2)
+        with save_col:
             if st.button("💾 변경사항 최종 저장", use_container_width=True):
                 try:
                     final_df = pd.concat([df[~mask], edited_df], ignore_index=True)
                     final_df[["일시", "요일", "월", "성별", "연령대", "이용목록"]].to_csv(DB_FILE, index=False, encoding='utf-8-sig')
                     st.success("저장 완료!"); time.sleep(1); st.rerun()
                 except Exception as e: st.error(f"오류: {e}")
-        with c2:
+        with excel_col:
             st.download_button("📥 필터링 데이터 엑셀 추출", data=create_excel_report(f_df), file_name="현황.xlsx", use_container_width=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
         st.divider()
         if not f_df.empty:
+            # 4. 시각화 (일자별 그래프 포함)
             st.subheader("📅 일자별 방문 추이")
             daily_counts = f_df['일시'].dt.date.value_counts().sort_index().reset_index()
             daily_counts.columns = ['날짜', '방문자 수']
@@ -187,8 +188,8 @@ elif st.session_state.page == 'gender':
     with center_col:
         st.markdown("<div class='main-btn-container'>", unsafe_allow_html=True)
         c1, c2 = st.columns(2)
-        if c1.button("남성", key="male"): st.session_state.temp_data['gender'] = "남성"; st.session_state.page = 'age'; st.rerun()
-        if c2.button("여성", key="female"): st.session_state.temp_data['gender'] = "여성"; st.session_state.page = 'age'; st.rerun()
+        if c1.button("남성", key="m"): st.session_state.temp_data['gender'] = "남성"; st.session_state.page = 'age'; st.rerun()
+        if c2.button("여성", key="f"): st.session_state.temp_data['gender'] = "여성"; st.session_state.page = 'age'; st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
 # [C] 사용자 페이지: 연령대
@@ -203,6 +204,7 @@ elif st.session_state.page == 'age':
                 st.session_state.temp_data['age'] = age; st.session_state.page = 'purpose'; st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
     
+    # 뒤로 가기
     _, back_col, _ = st.columns([1, 1, 1])
     with back_col:
         st.markdown("<div class='yellow-btn-area'>", unsafe_allow_html=True)
@@ -226,6 +228,7 @@ elif st.session_state.page == 'purpose':
                 st.session_state.page = 'complete'; st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
+    # 뒤로 가기
     _, back_col, _ = st.columns([1, 1, 1])
     with back_col:
         st.markdown("<div class='yellow-btn-area'>", unsafe_allow_html=True)
